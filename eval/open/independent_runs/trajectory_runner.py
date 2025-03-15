@@ -10,7 +10,7 @@ from dotenv import load_dotenv
 from agents import CompletionResult, CompletionReason
 from agents.agent_abc import AgentABC
 from agents.basic_agent import BasicAgent
-from eval.open.db_client import PostgresDBClient, SQLliteDBClient
+from eval.open.db_client import PostgresDBClient, SQLliteDBClient, DBClient
 from eval.open.independent_runs.simple_evaluator import SimpleFactorioEvaluator
 from models.conversation import Conversation
 from models.message import Message
@@ -244,18 +244,25 @@ def create_factorio_instance(instance_id: int) -> FactorioInstance:
     return instance
 
 
-async def create_db_client() -> PostgresDBClient:
-    """Create database client with connection pool"""
-    return PostgresDBClient(
+async def create_db_client() -> DBClient:
+    return SQLliteDBClient(
         max_conversation_length=40,
         min_connections=2,
         max_connections=5,
-        host=os.getenv("SKILLS_DB_HOST"),
-        port=os.getenv("SKILLS_DB_PORT"),
-        dbname=os.getenv("SKILLS_DB_NAME"),
-        user=os.getenv("SKILLS_DB_USER"),
-        password=os.getenv("SKILLS_DB_PASSWORD")
+        database_file=os.getenv("SQLITE_DB_FILE"),
     )
+
+    # """Create database client with connection pool"""
+    # return PostgresDBClient(
+    #     max_conversation_length=40,
+    #     min_connections=2,
+    #     max_connections=5,
+    #     host=os.getenv("SKILLS_DB_HOST"),
+    #     port=os.getenv("SKILLS_DB_PORT"),
+    #     dbname=os.getenv("SKILLS_DB_NAME"),
+    #     user=os.getenv("SKILLS_DB_USER"),
+    #     password=os.getenv("SKILLS_DB_PASSWORD")
+    # )
 
 
 async def run_trajectory(process_id: int, config: EvalConfig):
