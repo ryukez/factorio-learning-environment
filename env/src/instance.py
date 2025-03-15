@@ -85,6 +85,7 @@ class FactorioInstance:
         self.persistent_vars = {}
 
         self.tcp_port = tcp_port
+        print(f"Connecting to Factorio server at {address}:{tcp_port}...")
         self.rcon_client, self.address = self.connect_to_server(address, tcp_port)
         self.all_technologies_researched = all_technologies_researched
         self.fast = fast
