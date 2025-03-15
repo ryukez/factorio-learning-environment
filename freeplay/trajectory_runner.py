@@ -240,8 +240,8 @@ def create_factorio_instance(instance_id: int) -> FactorioInstance:
     if instance_id > 0:
         raise ValueError("Only one instance is supported")
 
-    ips = []
-    tcp_ports = []
+    ips = ["192.168.0.100"]
+    tcp_ports = [27000]
 
     instance = FactorioInstance(
         address=ips[instance_id],
