@@ -26,6 +26,8 @@ class PlayConfig:
     """Configuration for evaluation"""
 
     agent: AgentABC
+    version: int
+    version_description: str
 
 
 class TrajectoryRunner:
