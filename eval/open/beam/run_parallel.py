@@ -16,6 +16,7 @@ from eval.open.db_client import DBClient
 from instance import FactorioInstance
 from agents.utils.formatters.recursive_report_formatter import RecursiveReportFormatter
 from models.game_state import GameState
+from eval.open.db_client import SQLliteDBClient
 
 os.environ.update({"FORCE_COLOR": "1", "TERM": "xterm-256color"})
 load_dotenv()
@@ -73,23 +74,30 @@ async def get_version_to_use(resume_version: int = None) -> int:
 
 
 async def create_db_client() -> DBClient:
-    """Create and return a new database client."""
-    try:
-        max_connections = 5  # Per process
-        min_connections = 2
-        return DBClient(
-            max_conversation_length=40,
-            min_connections=min_connections,
-            max_connections=max_connections,
-            host=os.getenv("SKILLS_DB_HOST"),
-            port=os.getenv("SKILLS_DB_PORT"),
-            dbname=os.getenv("SKILLS_DB_NAME"),
-            user=os.getenv("SKILLS_DB_USER"),
-            password=os.getenv("SKILLS_DB_PASSWORD")
-        )
-    except Exception as e:
-        print(f"\033[91mError connecting to the database: {e}\033[91m")
-        raise
+    return SQLliteDBClient(
+        max_conversation_length=40,
+        min_connections=2,
+        max_connections=5,
+        database_file=os.getenv("SQLITE_DB_FILE"),
+    )
+
+    # """Create and return a new database client."""
+    # try:
+    #     max_connections = 5  # Per process
+    #     min_connections = 2
+    #     return DBClient(
+    #         max_conversation_length=40,
+    #         min_connections=min_connections,
+    #         max_connections=max_connections,
+    #         host=os.getenv("SKILLS_DB_HOST"),
+    #         port=os.getenv("SKILLS_DB_PORT"),
+    #         dbname=os.getenv("SKILLS_DB_NAME"),
+    #         user=os.getenv("SKILLS_DB_USER"),
+    #         password=os.getenv("SKILLS_DB_PASSWORD")
+    #     )
+    # except Exception as e:
+    #     print(f"\033[91mError connecting to the database: {e}\033[91m")
+    #     raise
 
 
 async def run_model_search(model: str, instance_start: int, version: int, resume_version: int = None):

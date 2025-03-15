@@ -62,6 +62,7 @@ environment/src/skills/ground_truth_skills/*
 /eval/open/mcts/runs/
 /eval/open/independent_runs/summary_cache/
 /eval/open/beam/summary_cache/
+/summary_cache/
 /venv_py311/
 /eval/open/plots/
 *.mp4
