@@ -1,4 +1,4 @@
 [
-    {"task": "iron_ore_throughput_16.json",
-    "model": "gpt-4o"}
+    {"task": "electronic_circuit_throughput_16.json",
+    "model": "open-router-anthropic/claude-3.5-sonnet"}
     ]
