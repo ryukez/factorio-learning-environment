@@ -1,31 +1,20 @@
 # Copied from eval/open/independent_runs/trajectory_runner.py
 import asyncio
-import argparse
-import os
 import copy
 from dataclasses import dataclass
-from typing import Optional
 import multiprocessing
 from dotenv import load_dotenv
 
-from agents import CompletionResult, CompletionReason
 from agents.agent_abc import AgentABC
-from agents.basic_agent import BasicAgent
 from freeplay.evaluator import SimpleFactorioEvaluator
 from models.conversation import Conversation
 from models.message import Message
-from models.game_state import GameState
 from models.program import Program
 from instance import FactorioInstance
-from cluster.local.cluster_ips import get_local_container_ips
-from agents.utils.python_parser import PythonParser
 
-# from models.response import EnvironmentResponse
 from namespace import FactorioNamespace
 
 from agents import Response
-import json
-from eval.tasks.task_abc import TaskABC
 
 load_dotenv()
 
@@ -247,7 +236,12 @@ class TrajectoryRunner:
 
 def create_factorio_instance(instance_id: int) -> FactorioInstance:
     """Create a single Factorio instance"""
-    ips, udp_ports, tcp_ports = get_local_container_ips()
+    # ips, udp_ports, tcp_ports = get_local_container_ips()
+    if instance_id > 0:
+        raise ValueError("Only one instance is supported")
+
+    ips = []
+    tcp_ports = []
 
     instance = FactorioInstance(
         address=ips[instance_id],

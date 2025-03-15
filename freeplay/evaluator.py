@@ -1,10 +1,8 @@
 # Copied from eval/open/independent_runs/simple_evaluator.py
 import asyncio
 import copy
-from pathlib import Path
 from typing import List, Tuple, Union, Dict
 
-from eval.open.db_client import DBClient
 from models.achievements import ProductionFlows
 from models.game_state import GameState
 from models.program import Program
