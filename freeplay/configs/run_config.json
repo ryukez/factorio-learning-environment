@@ -1,4 +1,4 @@
 [
     {"task": "open_play.json",
-    "model": "gpt-4o"}
+    "model": "open-router-openai/gpt-4o-mini"}
     ]
