@@ -11,10 +11,12 @@ from models.conversation import Conversation
 from models.message import Message
 from models.program import Program
 from instance import FactorioInstance
+from freeplay.basic_agent import BasicAgent
 
 from namespace import FactorioNamespace
 
 from agents import Response
+from eval.tasks.task_abc import TaskABC
 
 load_dotenv()
 
@@ -25,7 +27,8 @@ COURTESY_SLEEP = 5
 class PlayConfig:
     """Configuration for evaluation"""
 
-    agent: AgentABC
+    task: TaskABC
+    model: str
     version: int
     version_description: str
 
@@ -99,6 +102,8 @@ class TrajectoryRunner:
 
         self.start_time = time.time()
 
+        print(self.start_time)
+
         current_state = None
         # if self.config.version:
         #     (
@@ -112,14 +117,14 @@ class TrajectoryRunner:
         #     self.agent.conversation = current_conversation
 
         if not current_state:
-            current_state = self.config.agent.task.starting_game_state
+            current_state = self.agent.task.starting_game_state
             depth = 0
             instance = self.evaluator.instance
             instance.reset(current_state)
             entities = instance.namespace.get_entities()
             current_conversation = Conversation(
                 messages=[
-                    Message(role="system", content=self.config.agent.system_prompt),
+                    Message(role="system", content=self.agent.system_prompt),
                     Message(
                         role="assistant",
                         content="print(f'Inventory: {inspect_inventory()}')\n"
@@ -143,6 +148,7 @@ class TrajectoryRunner:
 
             time.sleep(COURTESY_SLEEP)  # courtesy sleep
             try:
+                print("generation starting...")
                 program = await self._generate_program(
                     self.agent.conversation,
                     last_response,
@@ -151,8 +157,8 @@ class TrajectoryRunner:
 
                 print(
                     f"Generated program {multiprocessing.current_process().name} - "
-                    f"Model: {self.config.agent.model} - "
-                    f"Iteration {iteration}/{self.config.agent.task.trajectory_length}"
+                    f"Model: {self.agent.model} - "
+                    f"Iteration {iteration}/{self.agent.task.trajectory_length}"
                 )
 
                 if not program:
@@ -167,7 +173,7 @@ class TrajectoryRunner:
                     evaluated_program,
                     task_verification_response,
                 ) = await self.evaluator.evaluate(
-                    program, current_state, self.config.agent.task
+                    program, current_state, self.agent.task
                 )
                 print(program.code + "\n" + "=" * 50)
                 print(
@@ -183,8 +189,8 @@ class TrajectoryRunner:
                 )
                 print(
                     f"Evaluated program {multiprocessing.current_process().name} - "
-                    f"Model: {self.config.agent.model} - "
-                    f"Iteration {iteration}/{self.config.agent.task.trajectory_length}"
+                    f"Model: {self.agent.model} - "
+                    f"Iteration {iteration}/{self.agent.task.trajectory_length}"
                 )
 
                 if not evaluated_program:
@@ -192,7 +198,7 @@ class TrajectoryRunner:
 
                 program = evaluated_program
                 self.agent.conversation = program.conversation
-                program.meta["task_key"] = self.config.agent.task.task_key
+                program.meta["task_key"] = self.agent.task.task_key
                 last_response = Response(
                     code=program.code,
                     created_at=program.created_at,
@@ -206,14 +212,14 @@ class TrajectoryRunner:
                 )
 
                 # Save program
-                saved_program = await self.db.create_program(program)
-                print(
-                    f"Saved program {multiprocessing.current_process().name} - "
-                    f"Model: {self.config.agent.model} - "
-                    f"Iteration {iteration}/{self.config.agent.task.trajectory_length}"
-                )
+                # saved_program = await self.db.create_program(program)
+                # print(
+                #     f"Saved program {multiprocessing.current_process().name} - "
+                #     f"Model: {self.agent.model} - "
+                #     f"Iteration {iteration}/{self.agent.task.trajectory_length}"
+                # )
 
-                parent_id = saved_program.id
+                # parent_id = saved_program.id
 
                 # Update state for next iteration
                 if program.state:
@@ -225,8 +231,8 @@ class TrajectoryRunner:
                     elapsed_str = f"{int(elapsed // 3600):02d}:{int((elapsed % 3600) // 60):02d}:{int(elapsed % 60):02d}"
                     print(
                         f"\033[92m Process {multiprocessing.current_process().name} - "
-                        f"Model: {self.config.agent.model} - "
-                        f"Iteration {iteration}/{self.config.agent.task.trajectory_length} - "
+                        f"Model: {self.agent.model} - "
+                        f"Iteration {iteration}/{self.agent.task.trajectory_length} - "
                         f"Value: {program.value:.2f} - "
                         f"Elapsed: {elapsed_str} - "
                     )
@@ -242,7 +248,7 @@ def create_factorio_instance(instance_id: int) -> FactorioInstance:
     if instance_id > 0:
         raise ValueError("Only one instance is supported")
 
-    ips = ["192.168.0.100"]
+    ips = ["localhost"]
     tcp_ports = [27000]
 
     instance = FactorioInstance(
@@ -260,16 +266,21 @@ def create_factorio_instance(instance_id: int) -> FactorioInstance:
 
 async def run_trajectory(process_id: int, config: PlayConfig):
     """Entry point for running a single trajectory"""
-    instance = create_factorio_instance(process_id)
+    instance = create_factorio_instance(0)
+    system_prompt = instance.get_system_prompt()
 
     evaluator = SimpleFactorioEvaluator(
         instance=instance, value_accrual_time=1, error_penalty=0
     )
+    
+    agent = BasicAgent(
+        model=config.model, system_prompt=system_prompt, task=config.task
+    )
 
     # setup the instance
-    task = config.agent.task
+    task = config.task
     task.setup(instance)
-    runner = TrajectoryRunner(config.agent, evaluator, config, process_id)
+    runner = TrajectoryRunner(agent, evaluator, config, process_id)
     await runner.run()
 
 

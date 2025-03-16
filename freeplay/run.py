@@ -2,13 +2,14 @@
 import argparse
 import multiprocessing
 from dotenv import load_dotenv
-from agents.basic_agent import BasicAgent
+from freeplay.basic_agent import BasicAgent
 from freeplay.trajectory_runner import (
     run_process,
     create_factorio_instance,
     PlayConfig,
 )
 from eval.tasks.task_factory import TaskFactory
+from eval.tasks.task_abc import TaskABC
 from pathlib import Path
 import json
 
@@ -28,12 +29,6 @@ def main():
     run_config_location = args.run_config
     with open(run_config_location, "r") as f:
         run_configs = json.load(f)
-    # Create initial state and get system prompt
-    try:
-        instance = create_factorio_instance(0)
-        system_prompt = instance.get_system_prompt()
-    except Exception as e:
-        raise (f"Error creating Factorio instance: {e}")
 
     version_offset = 0
     # Get starting version number for new runs
@@ -41,16 +36,14 @@ def main():
     processes = []
     for run_idx, run_config in enumerate(run_configs):
         task = TaskFactory.create_task(run_config["task"])
-        agent = BasicAgent(
-            model=run_config["model"], system_prompt=system_prompt, task=task
-        )
         if "version" in run_config:
             version = run_config["version"]
         else:
             version = base_version + version_offset
             version_offset += 1
         config = PlayConfig(
-            agent=agent,
+            task=task,
+            model=run_config["model"],
             version=version,
             version_description=f"model:{run_config['model']}\ntype:{task.task_key}",
         )
