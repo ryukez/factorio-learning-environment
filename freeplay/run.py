@@ -2,7 +2,6 @@
 import argparse
 import multiprocessing
 from dotenv import load_dotenv
-from freeplay.basic_agent import BasicAgent
 from freeplay.trajectory_runner import (
     run_process,
     create_factorio_instance,

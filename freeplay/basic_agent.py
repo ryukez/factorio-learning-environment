@@ -1,14 +1,15 @@
 # Copied from agents/basic_agent.py
 import tenacity
+import json
 
 from agents import Response, CompletionResult, Policy
 from agents.agent_abc import AgentABC
-from agents.utils.formatters.recursive_report_formatter import RecursiveReportFormatter
 from agents.utils.llm_factory import LLMFactory
 from agents.utils.parse_response import parse_response
 from models.conversation import Conversation
 from models.generation_parameters import GenerationParameters
 from tenacity import wait_exponential, retry_if_exception_type, wait_random_exponential
+from freeplay.recursive_report_formatter import RecursiveReportFormatter
 
 from namespace import FactorioNamespace
 
@@ -26,28 +27,6 @@ You are an AI agent designed to play Factorio, specializing in:
 - Agent messages = Python programs to execute
 - User responses = STDOUT/STDERR from REPL
 - Interacts through 27 core API methods (to be specified)
-
-## Response Format
-
-### 1. PLANNING Stage
-Think through each step extensively in natural language, addressing:
-1. Error Analysis
-   - Was there an error in the previous execution?
-   - If yes, what was the problem?
-2. Next Step Planning
-   - What is the most useful next step of reasonable size?
-   - Why is this step valuable?
-   - Should I 
-3. Action Planning
-   - What specific actions are needed?
-   - What resources are required?
-
-### 2. POLICY Stage
-Write Python code to execute the planned actions:
-```python
-# Code must be enclosed in Python tags
-your_code_here
-```
 
 ## Best Practices
 
@@ -171,14 +150,49 @@ sorted_furnaces = sorted(
 - Ensure that your factory is arranged in a grid, as this will make things easier.
 """
 
-FINAL_INSTRUCTION = "\n\nALWAYS WRITE VALID PYTHON. YOUR WEIGHTS WILL BE ERASED IF YOU DON'T USE PYTHON."  # Annoying how effective this is
+FINAL_INSTRUCTION = """"
+## Response Format
+
+### 1. PLANNING Stage
+Think through each step extensively in natural language, addressing:
+1. Error Analysis
+   - Was there an error in the previous execution?
+   - If yes, what was the problem?
+2. Next Step Planning
+   - What is the most useful next step of reasonable size?
+   - Why is this step valuable?
+   - Should I 
+3. Action Planning
+   - What specific actions are needed?
+   - What resources are required?
+
+### 2. POLICY Stage
+Write Python code to execute the planned actions:
+```python
+# Code must be enclosed in Python tags
+your_code_here
+```
+
+Your output should be in the following format:
+[Planning]
+your_planning_here
+
+[Policy]
+```python
+your_code_here
+```
+"""
+
 
 
 class BasicAgent(AgentABC):
     def __init__(self, model, system_prompt, task, *args, **kwargs):
-        instructions = GENERAL_INSTRUCTIONS + system_prompt + FINAL_INSTRUCTION
         self.task = task
-        instructions += f"\n\n### Goal\n{task.goal_description}\n\n"
+        goal_description = f"\n\n### Your Final Goal\n{task.goal_description}\n\n"
+
+        instructions = GENERAL_INSTRUCTIONS + system_prompt + goal_description + FINAL_INSTRUCTION
+        print(instructions)
+
         super().__init__(model, instructions, *args, **kwargs)
         self.llm_factory = LLMFactory(model)
         self.formatter = RecursiveReportFormatter(
@@ -206,13 +220,35 @@ class BasicAgent(AgentABC):
         wait=wait_exponential(multiplier=1, min=4, max=10),
     )
     async def _get_policy(self, conversation: Conversation):
+        with open("instruction.txt", "r") as f:
+            instruction = f.read()
+
+        messages = self.formatter.to_llm_messages(conversation)
+        messages.append({
+            "role": "user",
+            "content": f"{instruction}\n## Your output\n[Planning]",
+        })
+
         response = await self.llm_factory.acall(
-            messages=self.formatter.to_llm_messages(conversation),
+            messages=messages,
             n_samples=1,  # We only need one program per iteration
             temperature=self.generation_params.temperature,
             max_tokens=self.generation_params.max_tokens,
             model=self.generation_params.model,
         )
+
+
+        text: str = response.choices[0].message.content
+        splits = text.split("```python")
+
+        thinking = ""
+        if len(splits) > 1:
+            thinking = splits[0]
+            thinking = thinking.replace("[Planning]", "")
+            thinking = thinking.replace("[Policy]", "")
+
+        with open("thinking.txt", "w") as f:
+            f.write(thinking)
 
         policy = parse_response(response)
         if not policy:
