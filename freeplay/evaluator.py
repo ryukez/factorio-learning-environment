@@ -31,7 +31,7 @@ class SimpleFactorioEvaluator:
 
     async def evaluate(self, program: Program, start_state: GameState, task) -> Program:
         try:
-            self.instance.reset(start_state)
+            # self.instance.reset(start_state)
             (
                 raw_reward,
                 state,

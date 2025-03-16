@@ -168,7 +168,7 @@ class TrajectoryRunner:
 
                 # Evaluate program
                 instance = self.evaluator.instance
-                instance.reset(current_state)
+                # instance.reset(current_state)
                 (
                     evaluated_program,
                     task_verification_response,
