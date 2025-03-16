@@ -1,20 +1,22 @@
 services:
   factorio_0:
-    command: /opt/factorio/bin/x64/factorio --start-server-load-scenario open_world
-      --port 34197 --server-settings /opt/factorio/config/server-settings.json --map-gen-settings
-      /opt/factorio/config/map-gen-settings.json --map-settings /opt/factorio/config/map-settings.json
-      --server-banlist /opt/factorio/config/server-banlist.json --rcon-port 27015
-      --rcon-password "factorio" --server-whitelist /opt/factorio/config/server-whitelist.json
-      --use-server-whitelist --server-adminlist /opt/factorio/config/server-adminlist.json
-      --mod-directory /opt/factorio/mods --map-gen-seed 44340
+    # command: /opt/factorio/bin/x64/factorio --start-server-load-scenario open_world
+    #   --port 34197 --server-settings /opt/factorio/config/server-settings.json --map-gen-settings
+    #   /opt/factorio/config/map-gen-settings.json --map-settings /opt/factorio/config/map-settings.json
+    #   --server-banlist /opt/factorio/config/server-banlist.json --rcon-port 27015
+    #   --rcon-password "factorio" --server-whitelist /opt/factorio/config/server-whitelist.json
+    #   --use-server-whitelist --server-adminlist /opt/factorio/config/server-adminlist.json
+    #   --mod-directory /opt/factorio/mods --map-gen-seed 44340
     deploy:
       resources:
         limits:
           cpus: '1'
           memory: 1024m
-    entrypoint: []
+    # entrypoint: []
+    entrypoint: ["/opt/factorio/config/docker-entrypoint.sh"]
     environment:
-    - SAVES=/opt/factorio/saves
+    - SAVE_NAME=save2
+    - SAVES=/opt/factorio/saves2
     - CONFIG=/opt/factorio/config
     - MODS=/opt/factorio/mods
     - SCENARIOS=/opt/factorio/scenarios
