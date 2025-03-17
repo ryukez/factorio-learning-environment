@@ -22,6 +22,7 @@ import os
 import json
 from typing import List
 from spreadsheet import insert_to_spreadsheet
+from models.game_state import GameState
 
 load_dotenv()
 
@@ -65,11 +66,15 @@ class TrajectoryRunner:
         conversation: Conversation,
         response: Response,
         namespace: FactorioNamespace,
+        entities: str,
+        inventory: str,
         meta={},
     ) -> Program:
         conversation = copy.deepcopy(conversation)
         try:
-            policy = await self.agent.step(conversation, response, namespace)
+            policy = await self.agent.step(
+                conversation, response, namespace, entities, inventory
+            )
 
             if not policy:
                 raise Exception("Policy not valid Python. Skipping.")
@@ -138,13 +143,6 @@ class TrajectoryRunner:
         #     )
         # )
 
-        # print(
-        #     json.dumps(
-        #         instance.namespace._save_entity_state(compress=False, encode=False)
-        #     )
-        # )
-        # os.exit(1)
-
         # New game
         if not current_state:
             current_state = self.agent.task.starting_game_state
@@ -170,13 +168,30 @@ class TrajectoryRunner:
             self.agent.conversation = current_conversation
             parent_id = None
 
+        # with open("entities.txt", "w") as f:
+        #     f.write(f"{instance.namespace.get_entities()}")
+        # with open("inventory.txt", "w") as f:
+        #     f.write(f"{instance.namespace.inspect_inventory()}")
+
+        # os.exit(1)
+
         last_response = None
         # Run trajectory
         STEPS_PER_ITERATION = 20
         iteration = (depth // STEPS_PER_ITERATION) + 1
+
         while True:
             iteration += 1
             print(f"### Iteration {iteration} ###")
+            current_entities = f"{instance.namespace.get_entities()}"
+            current_inventory = f"{instance.namespace.inspect_inventory()}"
+
+            previous_iteration_summary = await self.agent.report_summary(
+                iteration=iteration - 1,
+                current_inventory=current_inventory,
+                current_entities=current_entities,
+                current_conversation=current_conversation,
+            )
 
             input(
                 "Waiting for user input. Input instructions into 'instruction.txt' and press Enter to continue..."
@@ -185,23 +200,10 @@ class TrajectoryRunner:
             with open("instruction.txt", "r") as f:
                 instruction = f.read()
 
-            entities = json.dumps(
-                instance.namespace._save_entity_state(compress=False, encode=False)
-            )
-            inventory = json.dumps(
-                current_state.inventory
-                if isinstance(current_state.inventory, dict)
-                else current_state.inventory.__dict__
-            )
-            (
-                entity_summary,
-                inventory_summary,
-            ) = await self.agent.start_iteration(
+            await self.agent.start_iteration(
                 iteration=iteration,
                 instruction=instruction,
-                inventory=inventory,
-                entities=entities,
-                conversation=current_conversation,
+                previous_iteration_summary=previous_iteration_summary,
             )
 
             # Save results to spreadsheet
@@ -214,9 +216,9 @@ class TrajectoryRunner:
                         self.config.model,
                         iteration,
                         instruction,
-                        inventory,
-                        entity_summary,
-                        inventory_summary,
+                        current_entities,
+                        current_inventory,
+                        previous_iteration_summary,
                     ],
                 ],
             )
@@ -224,11 +226,16 @@ class TrajectoryRunner:
             for step in range(STEPS_PER_ITERATION):
                 time.sleep(COURTESY_SLEEP)  # courtesy sleep
                 try:
+                    current_entities = f"{instance.namespace.get_entities()}"
+                    current_inventory = f"{instance.namespace.inspect_inventory()}"
+
                     print("generation starting...")
                     program = await self._generate_program(
                         current_conversation,
                         last_response,
                         self.evaluator.instance.namespace,
+                        entities=current_entities,
+                        inventory=current_inventory,
                     )
 
                     print(
@@ -303,8 +310,12 @@ class TrajectoryRunner:
                         "Steps!A1:Z",
                         [
                             [
+                                self.config.version,
+                                self.config.model,
                                 iteration,
                                 step,
+                                current_entities,
+                                current_inventory,
                                 program.thinking,
                                 program.code,
                                 program.response,

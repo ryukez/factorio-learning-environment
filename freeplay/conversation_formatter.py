@@ -59,18 +59,18 @@ class ConversationFormatter(ConversationFormatter):
         self,
         iteration: int,
         instruction: str,
-        inventory: str,
-        entity_summary: str,
-        iteration_summary: str,
+        previous_iteration_summary: str,
     ):
         self.iteration = iteration
         self.instruction = instruction
-        self.inventory = inventory
-        self.entity_summary = entity_summary
-        self.iteration_summary = iteration_summary
+        self.previous_iteration_summary = previous_iteration_summary
 
     async def format_conversation(
-        self, conversation: Conversation, namespace: FactorioNamespace
+        self,
+        conversation: Conversation,
+        namespace: FactorioNamespace,
+        current_entities: str,
+        current_inventory: str,
     ) -> Conversation:
         """
         conversations:
@@ -84,9 +84,6 @@ class ConversationFormatter(ConversationFormatter):
           ...
         """
 
-        # TODO: Add current env summary
-        # TODO: Add previous iteration summary
-
         iteration_messages = []
         for message in conversation.messages:
             if message.metadata.get("iteration") == self.iteration:
@@ -95,14 +92,14 @@ class ConversationFormatter(ConversationFormatter):
         updated_system_prompt = f"""
 {self.system_prompt}
 
-## Existing entities
-{self.entity_summary}
+## Previous Iteration Summary
+{self.previous_iteration_summary}
+
+## Existing Entities
+{current_entities}
 
 ## Current Inventory
-{self.inventory}
-
-## Previous Iteration Summary
-{self.iteration_summary}
+{current_inventory}
 
 {FINAL_INSTRUCTION}
 

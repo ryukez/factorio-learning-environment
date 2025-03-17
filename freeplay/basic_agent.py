@@ -192,7 +192,9 @@ Output the summary only, do not include any other information.
 """
 
 
-def iteration_summary_prompt(inventory: str, logs: str):
+def iteration_summary_prompt(
+    instruction: str, entities: str, inventory: str, logs: str
+):
     return f"""
 You are an AI agent designed to play Factorio, specializing in:
 - Long-horizon planning
@@ -200,7 +202,7 @@ You are an AI agent designed to play Factorio, specializing in:
 - Systematic automation
 
 ## Instruction
-You are given current inventory state and logs you have executed in the game, during the previous interation.
+You are given current existing entities, inventory state and logs you have executed in the game, during the previous interation.
 You have the following instruction from supervisor:
 
 [Task]
@@ -225,7 +227,7 @@ In the previous iteration,
 - The burner drill at position(x6) was not working due to insufficient fuel. I fixed the issue by feeding some coals. Because we have no automated coal supplies, I should feed them manually for a while when it is out of fuel.
 
 TASK COMPLETION ANALYSIS
-Analyze how is the task is going, given inventory state and execution logs.
+Analyze how is the task is going, given existing entities, inventory state and execution logs.
 If the given task is completed, you should summarize:
 - the entities related to the task, its status and positions
 - notes useful for the following actions
@@ -262,6 +264,12 @@ Some examples
 - Ensure you can place a entity to a tile before attempting placing
 
 You must output only the report. Any other texts are forbidden.
+
+## Instruction
+{instruction}
+
+## Entities
+{entities}
 
 ## Inventory
 {inventory}
@@ -302,38 +310,58 @@ class BasicAgent(AgentABC):
         self,
         iteration: int,
         instruction: str,
-        inventory: str,
-        entities: str,
-        conversation: Conversation,
+        previous_iteration_summary: str,
     ):
-        entity_summary_response = await self.llm_factory.acall(
-            messages=[
-                {
-                    "role": "user",
-                    "content": entity_summary_prompt(entities),
-                }
-            ],
-            n_samples=1,  # We only need one program per iteration
-            temperature=self.generation_params.temperature,
-            max_tokens=16384,  # use longer max_tokens
-            model=self.generation_params.model,
+        self.formatter.start_iteration(
+            iteration=iteration,
+            instruction=instruction,
+            previous_iteration_summary=previous_iteration_summary,
         )
-        entity_summary = entity_summary_response.choices[0].message.content
 
-        previous_iteration_messages = []
-        for message in conversation.messages:
-            if message.metadata.get("iteration") == iteration - 1:
-                previous_iteration_messages.append(message)
+    async def report_summary(
+        self,
+        iteration: int,
+        current_inventory: str,
+        current_entities: str,
+        current_conversation: Conversation,
+    ):
+        # entity_summary_response = await self.llm_factory.acall(
+        #     messages=[
+        #         {
+        #             "role": "user",
+        #             "content": entity_summary_prompt(entities),
+        #         }
+        #     ],
+        #     n_samples=1,  # We only need one program per iteration
+        #     temperature=self.generation_params.temperature,
+        #     max_tokens=16384,  # use longer max_tokens
+        #     model=self.generation_params.model,
+        # )
+        # entity_summary = entity_summary_response.choices[0].message.content
+
+        instruction = ""
+        iteration_messages = []
+        for message in current_conversation.messages:
+            if message.metadata.get("iteration") == iteration:
+                iteration_messages.append(message)
+                instruction = message.metadata.get("instruction")
 
         iteration_summary = ""
-        if previous_iteration_messages:
+        if iteration_messages:
             iteration_summary_response = await self.llm_factory.acall(
                 messages=[
                     {
                         "role": "user",
                         "content": iteration_summary_prompt(
-                            inventory,
-                            entity_summary_response.choices[0].message.content,
+                            instruction,
+                            current_entities,
+                            current_inventory,
+                            "\n".join(
+                                [
+                                    f"role: {m.role}\ncontent: {m.content}\n"
+                                    for m in iteration_messages
+                                ]
+                            ),
                         ),
                     }
                 ],
@@ -344,16 +372,8 @@ class BasicAgent(AgentABC):
             )
             iteration_summary = iteration_summary_response.choices[0].message.content
 
-        self.formatter.start_iteration(
-            iteration=iteration,
-            instruction=instruction,
-            inventory=inventory,
-            entity_summary=entity_summary,
-            iteration_summary=iteration_summary,
-        )
-
         return (
-            entity_summary,
+            # entity_summary,
             iteration_summary,
         )
 
@@ -362,10 +382,15 @@ class BasicAgent(AgentABC):
         conversation: Conversation,
         response: Response,
         namespace: FactorioNamespace,
+        entities: str,
+        inventory: str,
     ) -> Policy:
         # We format the conversation every N steps to add a context summary to the system prompt
         formatted_conversation = await self.formatter.format_conversation(
-            conversation, namespace
+            conversation,
+            namespace,
+            entities,
+            inventory,
         )
         # We set the new conversation state for external use
         self.set_conversation(formatted_conversation)
