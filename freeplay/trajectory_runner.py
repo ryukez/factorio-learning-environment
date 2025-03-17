@@ -152,104 +152,106 @@ class TrajectoryRunner:
 
         last_response = None
         # Run trajectory
-        iteration = 0
+        STEPS_PER_ITERATION = 10
+        iteration = (depth // STEPS_PER_ITERATION) + 1
         while True:
             iteration += 1
+            print(f"### Iteration {iteration} ###")
 
-            time.sleep(COURTESY_SLEEP)  # courtesy sleep
-            try:
-                print("generation starting...")
-                program = await self._generate_program(
-                    self.agent.conversation,
-                    last_response,
-                    self.evaluator.instance.namespace,
-                )
-
-                print(
-                    f"Generated program {multiprocessing.current_process().name} - "
-                    f"Model: {self.agent.model} - "
-                    f"Iteration {iteration}/{self.agent.task.trajectory_length}"
-                )
-
-                if not program:
-                    continue
-
-                program.parent_id = parent_id
-
-                # Evaluate program
-                instance = self.evaluator.instance
-                # instance.reset(current_state)
-                (
-                    evaluated_program,
-                    task_verification_response,
-                ) = await self.evaluator.evaluate(
-                    program, current_state, self.agent.task
-                )
-                print(program.code + "\n" + "=" * 50)
-                print(
-                    "\033[1m\n".join(
-                        [
-                            ">>>\t" + line
-                            for line in program.response.strip()
-                            .replace("\\n", "\n\t")
-                            .split("\n")
-                        ]
-                    ).strip()
-                    + "\033[0m"
-                )
-                print(
-                    f"Evaluated program {multiprocessing.current_process().name} - "
-                    f"Model: {self.agent.model} - "
-                    f"Iteration {iteration}/{self.agent.task.trajectory_length}"
-                )
-
-                if not evaluated_program:
-                    continue
-
-                program = evaluated_program
-                self.agent.conversation = program.conversation
-                program.meta["task_key"] = self.agent.task.task_key
-                last_response = Response(
-                    code=program.code,
-                    created_at=program.created_at,
-                    score=program.value,
-                    achievements=program.achievements,
-                    step=depth,
-                    ticks=program.ticks,
-                    flows=program.flows,
-                    response=program.response,
-                    task=task_verification_response,
-                )
-
-                # Save program
-                saved_program = await self.db.create_program(program)
-                print(
-                    f"Saved program {multiprocessing.current_process().name} - "
-                    f"Model: {self.agent.model} - "
-                    f"Iteration {iteration}/{self.agent.task.trajectory_length}"
-                )
-
-                parent_id = saved_program.id
-
-                # Update state for next iteration
-                if program.state:
-                    current_state = program.state
-                    current_conversation = program.conversation
-
-                if iteration % 10 == 0:
-                    elapsed = time.time() - self.start_time
-                    elapsed_str = f"{int(elapsed // 3600):02d}:{int((elapsed % 3600) // 60):02d}:{int(elapsed % 60):02d}"
-                    print(
-                        f"\033[92m Process {multiprocessing.current_process().name} - "
-                        f"Model: {self.agent.model} - "
-                        f"Iteration {iteration}/{self.agent.task.trajectory_length} - "
-                        f"Value: {program.value:.2f} - "
-                        f"Elapsed: {elapsed_str} - "
+            for step in range(STEPS_PER_ITERATION):
+                time.sleep(COURTESY_SLEEP)  # courtesy sleep
+                try:
+                    print("generation starting...")
+                    program = await self._generate_program(
+                        self.agent.conversation,
+                        last_response,
+                        self.evaluator.instance.namespace,
                     )
 
-            except Exception as e:
-                print(f"Error in iteration {iteration}: {e}")
-                continue
+                    print(
+                        f"Generated program {multiprocessing.current_process().name} - "
+                        f"Model: {self.agent.model} - "
+                        f"Step {iteration}-{step + 1}"
+                    )
+
+                    if not program:
+                        continue
+
+                    program.parent_id = parent_id
+
+                    # Evaluate program
+                    instance = self.evaluator.instance
+                    # instance.reset(current_state)
+                    (
+                        evaluated_program,
+                        task_verification_response,
+                    ) = await self.evaluator.evaluate(
+                        program, current_state, self.agent.task
+                    )
+                    print(program.code + "\n" + "=" * 50)
+                    print(
+                        "\033[1m\n".join(
+                            [
+                                ">>>\t" + line
+                                for line in program.response.strip()
+                                .replace("\\n", "\n\t")
+                                .split("\n")
+                            ]
+                        ).strip()
+                        + "\033[0m"
+                    )
+                    print(
+                        f"Evaluated program {multiprocessing.current_process().name} - "
+                        f"Model: {self.agent.model} - "
+                        f"Step {iteration}-{step + 1}"
+                    )
+
+                    if not evaluated_program:
+                        continue
+
+                    program = evaluated_program
+                    self.agent.conversation = program.conversation
+                    program.meta["task_key"] = self.agent.task.task_key
+                    last_response = Response(
+                        code=program.code,
+                        created_at=program.created_at,
+                        score=program.value,
+                        achievements=program.achievements,
+                        step=depth,
+                        ticks=program.ticks,
+                        flows=program.flows,
+                        response=program.response,
+                        task=task_verification_response,
+                    )
+
+                    # Save program
+                    saved_program = await self.db.create_program(program)
+                    print(
+                        f"Saved program {multiprocessing.current_process().name} - "
+                        f"Model: {self.agent.model} - "
+                        f"Step {iteration}-{step + 1}"
+                    )
+
+                    parent_id = saved_program.id
+
+                    # Update state for next iteration
+                    if program.state:
+                        current_state = program.state
+                        current_conversation = program.conversation
+
+                except Exception as e:
+                    print(f"Error in Step {iteration}-{step + 1}: {e}")
+                    continue
+
+            elapsed = time.time() - self.start_time
+            elapsed_str = f"{int(elapsed // 3600):02d}:{int((elapsed % 3600) // 60):02d}:{int(elapsed % 60):02d}"
+            print(
+                f"\033[92m Process {multiprocessing.current_process().name} - "
+                f"Model: {self.agent.model} - "
+                f"Itertion {iteration} - "
+                f"Value: {program.value:.2f} - "
+                f"Elapsed: {elapsed_str} - "
+            )
 
 
 def create_factorio_instance(instance_id: int) -> FactorioInstance:
