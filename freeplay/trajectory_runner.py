@@ -21,6 +21,7 @@ from eval.open.db_client import DBClient, SQLliteDBClient
 import os
 import json
 from typing import List
+from spreadsheet import insert_to_spreadsheet
 
 load_dotenv()
 
@@ -79,6 +80,7 @@ class TrajectoryRunner:
                 messages = conversation.dict()["messages"]
 
             program = Program(
+                thinking=policy.thinking,
                 code=policy.code,
                 conversation=conversation,
                 response=response.response if response else None,
@@ -170,11 +172,15 @@ class TrajectoryRunner:
 
         last_response = None
         # Run trajectory
-        STEPS_PER_ITERATION = 10
+        STEPS_PER_ITERATION = 20
         iteration = (depth // STEPS_PER_ITERATION) + 1
         while True:
             iteration += 1
             print(f"### Iteration {iteration} ###")
+
+            input(
+                "Waiting for user input. Input instructions into 'instruction.txt' and press Enter to continue..."
+            )
 
             with open("instruction.txt", "r") as f:
                 instruction = f.read()
@@ -182,7 +188,38 @@ class TrajectoryRunner:
             entities = json.dumps(
                 instance.namespace._save_entity_state(compress=False, encode=False)
             )
-            await self.agent.start_iteration(iteration, instruction, entities)
+            inventory = json.dumps(
+                current_state.inventory
+                if isinstance(current_state.inventory, dict)
+                else current_state.inventory.__dict__
+            )
+            (
+                entity_summary,
+                inventory_summary,
+            ) = await self.agent.start_iteration(
+                iteration=iteration,
+                instruction=instruction,
+                inventory=inventory,
+                entities=entities,
+                conversation=current_conversation,
+            )
+
+            # Save results to spreadsheet
+            insert_to_spreadsheet(
+                os.getenv("SPREADSHEET_ID"),
+                "Iterations!A1:Z",
+                [
+                    [
+                        self.config.version,
+                        self.config.model,
+                        iteration,
+                        instruction,
+                        inventory,
+                        entity_summary,
+                        inventory_summary,
+                    ],
+                ],
+            )
 
             for step in range(STEPS_PER_ITERATION):
                 time.sleep(COURTESY_SLEEP)  # courtesy sleep
@@ -259,6 +296,21 @@ class TrajectoryRunner:
                     )
 
                     parent_id = saved_program.id
+
+                    # Save results to spreadsheet
+                    insert_to_spreadsheet(
+                        os.getenv("SPREADSHEET_ID"),
+                        "Steps!A1:Z",
+                        [
+                            [
+                                iteration,
+                                step,
+                                program.thinking,
+                                program.code,
+                                program.response,
+                            ]
+                        ],
+                    )
 
                     # Update state for next iteration
                     if program.state:

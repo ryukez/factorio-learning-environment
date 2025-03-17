@@ -192,6 +192,87 @@ Output the summary only, do not include any other information.
 """
 
 
+def iteration_summary_prompt(inventory: str, logs: str):
+    return f"""
+You are an AI agent designed to play Factorio, specializing in:
+- Long-horizon planning
+- Spatial reasoning 
+- Systematic automation
+
+## Instruction
+You are given current inventory state and logs you have executed in the game, during the previous interation.
+You have the following instruction from supervisor:
+
+[Task]
+Build a power plant, consisting of a offshore pomp, boiler, and steam engine.
+
+[Hints From Supervisor]
+- You need to prepare enough iron and copper plates first to craft facilities
+
+Based on the inventory state and execution logs, you must generate a report of the previous iteration.
+The report must have 3 sections: CHANGES, TASK COMPLETION ANALYSIS and ERROR TIPS. Below are instructions for both of them:
+
+CHANGES
+Describe what is done duration the iteration.
+- Newly built facilities with position
+- Obtained items
+- Working status changes of facilities
+
+Example:
+In the previous iteration, 
+- we built burner mining drill at position(x1). It is supplying iron ores to stone furnace nearby at position(x2). There iron ores are smelted into iron plates, and stored into a wooden chest at position(x3) by a burner inserter at position(x4).
+- now we have boiler and steam engine in the inventory, so we can place them in the neighbor of existing offshore pomp at position(x5) to build power plant!
+- The burner drill at position(x6) was not working due to insufficient fuel. I fixed the issue by feeding some coals. Because we have no automated coal supplies, I should feed them manually for a while when it is out of fuel.
+
+TASK COMPLETION ANALYSIS
+Analyze how is the task is going, given inventory state and execution logs.
+If the given task is completed, you should summarize:
+- the entities related to the task, its status and positions
+- notes useful for the following actions
+
+If the task is not completed yet, you should summarize:
+- the remaining steps planned 
+- difficulties or obstacles you are facing
+- required items to complete the task
+
+Example:
+We have not yet built complete the task of building power plant.
+As the remaining steps, we need:
+- Get enough amount of iron and copper plates to craft offshore pomp, boiler and steam engine. We need more 30 iron plates and 3 copper plates.
+- Craft the entities
+- Connect them with pipes
+
+To get iron and copper plates, we can't craft them and need to smelt ores through furnaces.
+I have already built stone furnace for iron plates, but one for copper plates are not yet prepared.
+Next we need to build a stone furnace for copper ones. At the same time, coals and ores should be fed into the stone furnace of iron plates to get iron plates constantly.
+
+ERROR TIPS
+In this section you must analyse the errors that the agent has made and bring out tips how to mitigate these errors. 
+Usually error messages tell you what the agent did wrong. The errors can be incorrect use of API, misplaced objects etc. 
+Make this a succinct detailed list, group common similar error patterns and solutions how to avoid these errors. 
+Group similar mistakes, if the agent made the same mistake multiple times but at many places, bring it out as one section/bulletpoint. 
+Include new mistakes and all mistake tips from the previous report
+
+Make the sections accurate and thorough. Do not mention things like "The error message suggests" etc, this is self evident.
+Some examples
+
+### Errors when using extracting but being too far
+ -  Make sure to move to the target entity where you want to extract from before extracting items
+### Errors when placing into a tile which is occupied by another entity
+- Ensure you can place a entity to a tile before attempting placing
+
+You must output only the report. Any other texts are forbidden.
+
+## Inventory
+{inventory}
+
+## Execution Logs
+{logs}
+
+## Output
+"""
+
+
 def my_before_sleep(retry_state):
     if retry_state.attempt_number < 1:
         loglevel = logging.INFO
@@ -217,8 +298,15 @@ class BasicAgent(AgentABC):
         self.formatter = ConversationFormatter(instructions)
         self.generation_params = GenerationParameters(n=1, max_tokens=2048, model=model)
 
-    async def start_iteration(self, iteration: int, instruction: str, entities: str):
-        response = await self.llm_factory.acall(
+    async def start_iteration(
+        self,
+        iteration: int,
+        instruction: str,
+        inventory: str,
+        entities: str,
+        conversation: Conversation,
+    ):
+        entity_summary_response = await self.llm_factory.acall(
             messages=[
                 {
                     "role": "user",
@@ -230,11 +318,43 @@ class BasicAgent(AgentABC):
             max_tokens=16384,  # use longer max_tokens
             model=self.generation_params.model,
         )
+        entity_summary = entity_summary_response.choices[0].message.content
+
+        previous_iteration_messages = []
+        for message in conversation.messages:
+            if message.metadata.get("iteration") == iteration - 1:
+                previous_iteration_messages.append(message)
+
+        iteration_summary = ""
+        if previous_iteration_messages:
+            iteration_summary_response = await self.llm_factory.acall(
+                messages=[
+                    {
+                        "role": "user",
+                        "content": iteration_summary_prompt(
+                            inventory,
+                            entity_summary_response.choices[0].message.content,
+                        ),
+                    }
+                ],
+                n_samples=1,  # We only need one program per iteration
+                temperature=self.generation_params.temperature,
+                max_tokens=2048,  # use longer max_tokens
+                model=self.generation_params.model,
+            )
+            iteration_summary = iteration_summary_response.choices[0].message.content
 
         self.formatter.start_iteration(
             iteration=iteration,
             instruction=instruction,
-            entity_summary=response.choices[0].message.content,
+            inventory=inventory,
+            entity_summary=entity_summary,
+            iteration_summary=iteration_summary,
+        )
+
+        return (
+            entity_summary,
+            iteration_summary,
         )
 
     async def step(
@@ -271,18 +391,6 @@ class BasicAgent(AgentABC):
             max_tokens=self.generation_params.max_tokens,
             model=self.generation_params.model,
         )
-
-        text: str = response.choices[0].message.content
-        splits = text.split("```python")
-
-        thinking = ""
-        if len(splits) > 1:
-            thinking = splits[0]
-            thinking = thinking.replace("[Planning]", "")
-            thinking = thinking.replace("[Policy]", "")
-
-        with open("thinking.txt", "w") as f:
-            f.write(thinking)
 
         policy = parse_response(response)
         if not policy:

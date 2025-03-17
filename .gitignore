@@ -69,3 +69,4 @@ environment/src/skills/ground_truth_skills/*
 /leaderboard/node_modules/
 /summary_cache/
 mydatabase.db
+credentials/

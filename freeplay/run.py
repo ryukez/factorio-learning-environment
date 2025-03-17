@@ -32,30 +32,25 @@ def main():
     version_offset = 0
     # Get starting version number for new runs
     base_version = 1
-    processes = []
-    for run_idx, run_config in enumerate(run_configs):
-        task = TaskFactory.create_task(run_config["task"])
-        if "version" in run_config:
-            version = run_config["version"]
-        else:
-            version = base_version + version_offset
-            version_offset += 1
-        config = PlayConfig(
-            task=task,
-            model=run_config["model"],
-            version=version,
-            version_description=f"model:{run_config['model']}\ntype:{task.task_key}",
-        )
 
-        p = multiprocessing.Process(target=run_process, args=(run_idx, config))
-        p.start()
-        processes.append(p)
+    run_config = run_configs[0]
 
-    # Wait for all processes to complete
-    for p in processes:
-        p.join()
+    task = TaskFactory.create_task(run_config["task"])
+    if "version" in run_config:
+        version = run_config["version"]
+    else:
+        version = base_version + version_offset
+        version_offset += 1
+
+    config = PlayConfig(
+        task=task,
+        model=run_config["model"],
+        version=version,
+        version_description=f"model:{run_config['model']}\ntype:{task.task_key}",
+    )
+
+    run_process(0, config)
 
 
 if __name__ == "__main__":
-    multiprocessing.set_start_method("spawn")
     main()

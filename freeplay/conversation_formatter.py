@@ -55,10 +55,19 @@ class ConversationFormatter(ConversationFormatter):
     def __init__(self, system_prompt: str):
         self.system_prompt = system_prompt
 
-    def start_iteration(self, iteration: int, instruction: str, entity_summary: str):
+    def start_iteration(
+        self,
+        iteration: int,
+        instruction: str,
+        inventory: str,
+        entity_summary: str,
+        iteration_summary: str,
+    ):
         self.iteration = iteration
         self.instruction = instruction
+        self.inventory = inventory
         self.entity_summary = entity_summary
+        self.iteration_summary = iteration_summary
 
     async def format_conversation(
         self, conversation: Conversation, namespace: FactorioNamespace
@@ -88,6 +97,12 @@ class ConversationFormatter(ConversationFormatter):
 
 ## Existing entities
 {self.entity_summary}
+
+## Current Inventory
+{self.inventory}
+
+## Previous Iteration Summary
+{self.iteration_summary}
 
 {FINAL_INSTRUCTION}
 
