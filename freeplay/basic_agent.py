@@ -18,6 +18,7 @@ from freeplay.recursive_report_formatter import RecursiveReportFormatter
 import logging
 
 from namespace import FactorioNamespace
+from freeplay.conversation_formatter import ConversationFormatter
 
 GENERAL_INSTRUCTIONS = """
 # Factorio LLM Agent Instructions
@@ -156,37 +157,38 @@ sorted_furnaces = sorted(
 - Ensure that your factory is arranged in a grid, as this will make things easier.
 """
 
-FINAL_INSTRUCTION = """"
-## Response Format
 
-### 1. PLANNING Stage
-Think through each step extensively in natural language, addressing:
-1. Error Analysis
-   - Was there an error in the previous execution?
-   - If yes, what was the problem?
-2. Next Step Planning
-   - What is the most useful next step of reasonable size?
-   - Why is this step valuable?
-   - Should I 
-3. Action Planning
-   - What specific actions are needed?
-   - What resources are required?
+def entity_summary_prompt(entities: str):
+    return f"""
+You are a report generating model for the game factorio. 
+Given existing entities, you must summarise what structures the agent has created on the map and what are the use-cases of those structures. You must also bring out the entities and positions of entities of each of those structures.
 
-### 2. POLICY Stage
-Write Python code to execute the planned actions:
-```python
-# Code must be enclosed in Python tags
-your_code_here
-```
+Focus on the structures themselves. Do not bring out entities separately, create sections like 
+###Electricity generator at position(x)
+Consists of steam engine(position x), boiler(position y) and offshore pump (position z)
 
-Your output should be in the following format:
-[Planning]
-your_planning_here
+###Copper plate mine at position(x)
+Consists of following entities
+-  Burner mining drill (position x1) and a furnace at position(y1)
+-  Burner mining drill (position x2) and a furnace at position(y2)
+-  Burner mining drill (position x3) and a furnace at position(y3)
 
-[Policy]
-```python
-your_code_here
-```
+###Copper cable factory
+Consists of following entities
+-  Burner mining drill (position x1) and a furnace at position(y1)
+-  Assembling machine at position(z1) and inserter at position(a) that puts into assembling machine
+-  Beltgroup (position ) that connects the furnace at position y1 to assembling machine at position(z1)
+
+- If multiple sections are connected, summarise them as one structure
+- Do not include any mention of harvesting or crafting activities. That is not the aim of this report and is self-evident as the agent can see its own inventory
+- All structures from the previous report that did not have any updates, include them in the new report unchanged
+
+Output the summary only, do not include any other information.
+
+[Input]
+{entities}
+
+[Output]
 """
 
 
@@ -208,18 +210,28 @@ class BasicAgent(AgentABC):
     def __init__(self, model, system_prompt, task, *args, **kwargs):
         self.task = task
         goal_description = f"\n\n### Your Final Goal\n{task.goal_description}\n\n"
-
-        instructions = (
-            GENERAL_INSTRUCTIONS + system_prompt + goal_description + FINAL_INSTRUCTION
-        )
-        print(instructions)
+        instructions = GENERAL_INSTRUCTIONS + system_prompt + goal_description
 
         super().__init__(model, instructions, *args, **kwargs)
         self.llm_factory = LLMFactory(model)
-        self.formatter = RecursiveReportFormatter(
-            chunk_size=16, llm_call=self.llm_factory.acall, cache_dir="summary_cache"
-        )
+        self.formatter = ConversationFormatter(instructions)
         self.generation_params = GenerationParameters(n=1, max_tokens=2048, model=model)
+
+    async def start_iteration(self, entities: str):
+        response = await self.llm_factory.acall(
+            messages=[
+                {
+                    "role": "user",
+                    "content": entity_summary_prompt(entities),
+                }
+            ],
+            n_samples=1,  # We only need one program per iteration
+            temperature=self.generation_params.temperature,
+            max_tokens=16384,  # use longer max_tokens
+            model=self.generation_params.model,
+        )
+
+        self.formatter.set_entity_summary(response.choices[0].message.content)
 
     async def step(
         self,
@@ -243,16 +255,10 @@ class BasicAgent(AgentABC):
         stop=stop_after_attempt(3),
     )
     async def _get_policy(self, conversation: Conversation):
-        with open("instruction.txt", "r") as f:
-            instruction = f.read()
-
         messages = self.formatter.to_llm_messages(conversation)
-        messages.append(
-            {
-                "role": "user",
-                "content": f"{instruction}\n## Your output\n[Planning]",
-            }
-        )
+
+        with open("messages.json", "w") as f:
+            json.dump(messages, f)
 
         response = await self.llm_factory.acall(
             messages=messages,

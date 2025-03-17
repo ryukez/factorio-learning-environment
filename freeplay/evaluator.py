@@ -9,6 +9,7 @@ from models.program import Program
 from entities import Entity, EntityGroup
 from instance import FactorioInstance
 from utils.profits import get_achievements
+from models.conversation import Conversation
 
 
 class SimpleFactorioEvaluator:
@@ -29,7 +30,13 @@ class SimpleFactorioEvaluator:
         if logger:
             self.port_to_group = logger.port_to_group
 
-    async def evaluate(self, program: Program, start_state: GameState, task) -> Program:
+    async def evaluate(
+        self,
+        program: Program,
+        start_state: GameState,
+        iteration_conversation: Conversation,
+        task,
+    ) -> Program:
         try:
             # self.instance.reset(start_state)
             (
@@ -66,6 +73,15 @@ class SimpleFactorioEvaluator:
                 if "objectives" in program.meta
                 else [],
             )  #
+            iteration_conversation.add_result(
+                program.code,
+                final_response,
+                score=raw_reward,
+                advantage=relative_reward,
+                objectives=program.meta["objectives"]
+                if "objectives" in program.meta
+                else [],
+            )
             program.conversation = conversation
             program.response = response
             program.achievements = achievements
