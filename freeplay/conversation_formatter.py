@@ -55,7 +55,9 @@ class ConversationFormatter(ConversationFormatter):
     def __init__(self, system_prompt: str):
         self.system_prompt = system_prompt
 
-    def set_entity_summary(self, entity_summary: str):
+    def start_iteration(self, iteration: int, instruction: str, entity_summary: str):
+        self.iteration = iteration
+        self.instruction = instruction
         self.entity_summary = entity_summary
 
     async def format_conversation(
@@ -76,8 +78,10 @@ class ConversationFormatter(ConversationFormatter):
         # TODO: Add current env summary
         # TODO: Add previous iteration summary
 
-        with open("instruction.txt", "r") as f:
-            instruction = f.read()
+        iteration_messages = []
+        for message in conversation.messages:
+            if message.metadata.get("iteration") == self.iteration:
+                iteration_messages.append(message)
 
         updated_system_prompt = f"""
 {self.system_prompt}
@@ -87,7 +91,7 @@ class ConversationFormatter(ConversationFormatter):
 
 {FINAL_INSTRUCTION}
 
-{instruction}
+{self.instruction}
 """
 
         messages = (
@@ -97,7 +101,7 @@ class ConversationFormatter(ConversationFormatter):
                     content=updated_system_prompt,
                 )
             ]
-            + conversation.messages
+            + iteration_messages
             + [
                 Message(
                     role="user",

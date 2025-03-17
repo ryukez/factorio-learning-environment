@@ -217,7 +217,7 @@ class BasicAgent(AgentABC):
         self.formatter = ConversationFormatter(instructions)
         self.generation_params = GenerationParameters(n=1, max_tokens=2048, model=model)
 
-    async def start_iteration(self, entities: str):
+    async def start_iteration(self, iteration: int, instruction: str, entities: str):
         response = await self.llm_factory.acall(
             messages=[
                 {
@@ -231,7 +231,11 @@ class BasicAgent(AgentABC):
             model=self.generation_params.model,
         )
 
-        self.formatter.set_entity_summary(response.choices[0].message.content)
+        self.formatter.start_iteration(
+            iteration=iteration,
+            instruction=instruction,
+            entity_summary=response.choices[0].message.content,
+        )
 
     async def step(
         self,

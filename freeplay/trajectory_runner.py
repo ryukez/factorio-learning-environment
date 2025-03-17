@@ -62,15 +62,13 @@ class TrajectoryRunner:
     async def _generate_program(
         self,
         conversation: Conversation,
-        iteration_conversation: Conversation,
         response: Response,
         namespace: FactorioNamespace,
         meta={},
     ) -> Program:
         conversation = copy.deepcopy(conversation)
-        iteration_conversation = copy.deepcopy(iteration_conversation)
         try:
-            policy = await self.agent.step(iteration_conversation, response, namespace)
+            policy = await self.agent.step(conversation, response, namespace)
 
             if not policy:
                 raise Exception("Policy not valid Python. Skipping.")
@@ -178,19 +176,20 @@ class TrajectoryRunner:
             iteration += 1
             print(f"### Iteration {iteration} ###")
 
+            with open("instruction.txt", "r") as f:
+                instruction = f.read()
+
             entities = json.dumps(
                 instance.namespace._save_entity_state(compress=False, encode=False)
             )
-            await self.agent.start_iteration(entities)
+            await self.agent.start_iteration(iteration, instruction, entities)
 
-            iteration_conversation = Conversation(messages=[])
             for step in range(STEPS_PER_ITERATION):
                 time.sleep(COURTESY_SLEEP)  # courtesy sleep
                 try:
                     print("generation starting...")
                     program = await self._generate_program(
                         current_conversation,
-                        iteration_conversation,
                         last_response,
                         self.evaluator.instance.namespace,
                     )
@@ -213,7 +212,7 @@ class TrajectoryRunner:
                         evaluated_program,
                         task_verification_response,
                     ) = await self.evaluator.evaluate(
-                        program, current_state, iteration_conversation, self.agent.task
+                        program, current_state, iteration, instruction, self.agent.task
                     )
                     print(program.code + "\n" + "=" * 50)
                     print(

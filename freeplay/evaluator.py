@@ -34,7 +34,8 @@ class SimpleFactorioEvaluator:
         self,
         program: Program,
         start_state: GameState,
-        iteration_conversation: Conversation,
+        iteration: int,
+        instruction: str,
         task,
     ) -> Program:
         try:
@@ -67,21 +68,14 @@ class SimpleFactorioEvaluator:
             conversation.add_result(
                 program.code,
                 final_response,
+                iteration=iteration,
+                instruction=instruction,
                 score=raw_reward,
                 advantage=relative_reward,
                 objectives=program.meta["objectives"]
                 if "objectives" in program.meta
                 else [],
             )  #
-            iteration_conversation.add_result(
-                program.code,
-                final_response,
-                score=raw_reward,
-                advantage=relative_reward,
-                objectives=program.meta["objectives"]
-                if "objectives" in program.meta
-                else [],
-            )
             program.conversation = conversation
             program.response = response
             program.achievements = achievements
