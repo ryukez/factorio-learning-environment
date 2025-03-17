@@ -15,6 +15,7 @@ from tenacity import (
     stop_after_attempt,
 )
 from freeplay.recursive_report_formatter import RecursiveReportFormatter
+import logging
 
 from namespace import FactorioNamespace
 
@@ -189,6 +190,20 @@ your_code_here
 """
 
 
+def my_before_sleep(retry_state):
+    if retry_state.attempt_number < 1:
+        loglevel = logging.INFO
+    else:
+        loglevel = logging.WARNING
+    logging.log(
+        loglevel,
+        "Retrying %s: attempt %s ended with: %s",
+        retry_state.fn,
+        retry_state.attempt_number,
+        retry_state.outcome,
+    )
+
+
 class BasicAgent(AgentABC):
     def __init__(self, model, system_prompt, task, *args, **kwargs):
         self.task = task
@@ -224,6 +239,7 @@ class BasicAgent(AgentABC):
     @tenacity.retry(
         retry=retry_if_exception_type(Exception),
         wait=wait_exponential(multiplier=1, min=4, max=10),
+        before_sleep=my_before_sleep,
         stop=stop_after_attempt(3),
     )
     async def _get_policy(self, conversation: Conversation):
