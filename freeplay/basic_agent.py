@@ -8,7 +8,12 @@ from agents.utils.llm_factory import LLMFactory
 from agents.utils.parse_response import parse_response
 from models.conversation import Conversation
 from models.generation_parameters import GenerationParameters
-from tenacity import wait_exponential, retry_if_exception_type, wait_random_exponential
+from tenacity import (
+    wait_exponential,
+    retry_if_exception_type,
+    wait_random_exponential,
+    stop_after_attempt,
+)
 from freeplay.recursive_report_formatter import RecursiveReportFormatter
 
 from namespace import FactorioNamespace
@@ -184,13 +189,14 @@ your_code_here
 """
 
 
-
 class BasicAgent(AgentABC):
     def __init__(self, model, system_prompt, task, *args, **kwargs):
         self.task = task
         goal_description = f"\n\n### Your Final Goal\n{task.goal_description}\n\n"
 
-        instructions = GENERAL_INSTRUCTIONS + system_prompt + goal_description + FINAL_INSTRUCTION
+        instructions = (
+            GENERAL_INSTRUCTIONS + system_prompt + goal_description + FINAL_INSTRUCTION
+        )
         print(instructions)
 
         super().__init__(model, instructions, *args, **kwargs)
@@ -218,16 +224,19 @@ class BasicAgent(AgentABC):
     @tenacity.retry(
         retry=retry_if_exception_type(Exception),
         wait=wait_exponential(multiplier=1, min=4, max=10),
+        stop=stop_after_attempt(3),
     )
     async def _get_policy(self, conversation: Conversation):
         with open("instruction.txt", "r") as f:
             instruction = f.read()
 
         messages = self.formatter.to_llm_messages(conversation)
-        messages.append({
-            "role": "user",
-            "content": f"{instruction}\n## Your output\n[Planning]",
-        })
+        messages.append(
+            {
+                "role": "user",
+                "content": f"{instruction}\n## Your output\n[Planning]",
+            }
+        )
 
         response = await self.llm_factory.acall(
             messages=messages,
@@ -236,7 +245,6 @@ class BasicAgent(AgentABC):
             max_tokens=self.generation_params.max_tokens,
             model=self.generation_params.model,
         )
-
 
         text: str = response.choices[0].message.content
         splits = text.split("```python")
