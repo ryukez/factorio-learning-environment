@@ -17,6 +17,8 @@ from namespace import FactorioNamespace
 
 from agents import Response
 from eval.tasks.task_abc import TaskABC
+from eval.open.db_client import DBClient, SQLliteDBClient
+import os
 
 load_dotenv()
 
@@ -39,11 +41,13 @@ class TrajectoryRunner:
     def __init__(
         self,
         agent: AgentABC,
+        db_client: DBClient,
         evaluator: SimpleFactorioEvaluator,
         config: PlayConfig,
         process_id: int,
     ):
         self.agent = agent
+        self.db = db_client
         self.evaluator = evaluator
         self.config = config
         self.iteration_times = []
@@ -105,17 +109,23 @@ class TrajectoryRunner:
         print(self.start_time)
 
         current_state = None
-        # if self.config.version:
-        #     (
-        #         current_state,
-        #         current_conversation,
-        #         parent_id,
-        #         depth,
-        #     ) = await self.db.get_resume_state(
-        #         resume_version=self.config.version, process_id=self.process_id
-        #     )
-        #     self.agent.conversation = current_conversation
+        # Continue
+        if self.config.version:
+            (
+                current_state,
+                current_conversation,
+                parent_id,
+                depth,
+            ) = await self.db.get_resume_state(
+                resume_version=self.config.version, process_id=self.process_id
+            )
+            self.agent.conversation = current_conversation
 
+            if current_state:
+                instance = self.evaluator.instance
+                instance.reset(current_state)
+
+        # New game
         if not current_state:
             current_state = self.agent.task.starting_game_state
             depth = 0
@@ -212,14 +222,14 @@ class TrajectoryRunner:
                 )
 
                 # Save program
-                # saved_program = await self.db.create_program(program)
-                # print(
-                #     f"Saved program {multiprocessing.current_process().name} - "
-                #     f"Model: {self.agent.model} - "
-                #     f"Iteration {iteration}/{self.agent.task.trajectory_length}"
-                # )
+                saved_program = await self.db.create_program(program)
+                print(
+                    f"Saved program {multiprocessing.current_process().name} - "
+                    f"Model: {self.agent.model} - "
+                    f"Iteration {iteration}/{self.agent.task.trajectory_length}"
+                )
 
-                # parent_id = saved_program.id
+                parent_id = saved_program.id
 
                 # Update state for next iteration
                 if program.state:
@@ -248,7 +258,7 @@ def create_factorio_instance(instance_id: int) -> FactorioInstance:
     if instance_id > 0:
         raise ValueError("Only one instance is supported")
 
-    ips = ["localhost"]
+    ips = ["192.168.0.108"]
     tcp_ports = [27000]
 
     instance = FactorioInstance(
@@ -264,15 +274,26 @@ def create_factorio_instance(instance_id: int) -> FactorioInstance:
     return instance
 
 
+async def create_db_client() -> DBClient:
+    """Create database client with connection pool"""
+    return SQLliteDBClient(
+        max_conversation_length=40,
+        min_connections=2,
+        max_connections=5,
+        database_file=os.getenv("SQLITE_DB_FILE"),
+    )
+
+
 async def run_trajectory(process_id: int, config: PlayConfig):
     """Entry point for running a single trajectory"""
+    db_client = await create_db_client()
     instance = create_factorio_instance(0)
     system_prompt = instance.get_system_prompt()
 
     evaluator = SimpleFactorioEvaluator(
         instance=instance, value_accrual_time=1, error_penalty=0
     )
-    
+
     agent = BasicAgent(
         model=config.model, system_prompt=system_prompt, task=config.task
     )
@@ -280,7 +301,7 @@ async def run_trajectory(process_id: int, config: PlayConfig):
     # setup the instance
     task = config.task
     task.setup(instance)
-    runner = TrajectoryRunner(agent, evaluator, config, process_id)
+    runner = TrajectoryRunner(agent, db_client, evaluator, config, process_id)
     await runner.run()
 
 

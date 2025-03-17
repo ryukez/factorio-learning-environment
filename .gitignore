@@ -68,3 +68,4 @@ environment/src/skills/ground_truth_skills/*
 !/docs/assets/videos/*.mp4
 /leaderboard/node_modules/
 /summary_cache/
+mydatabase.db
