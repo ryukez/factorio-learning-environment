@@ -13,10 +13,36 @@ import copy
 from namespace import FactorioNamespace
 
 FINAL_INSTRUCTION = """"
+Based on the given medium-term strategy, your task is to generate policy code executing actual actions.
+Given the execution logs as conversation, existing entities, inventory content and the current plan, decide on the next steps and write Python code to execute them.
+
 ## Response Format
+
+### 1. PLANNING Stage
+Think through each step extensively in natural language, addressing:
+1. Error Analysis
+   - Was there an error in the previous execution?
+   - If yes, what was the problem?
+2. Next Step Planning
+   - What is the most useful next step of reasonable size?
+   - Why is this step valuable?
+   - Should I 
+3. Action Planning
+   - What specific actions are needed?
+   - What resources are required?
+
+### 2. POLICY Stage
 Write Python code to execute the planned actions:
 ```python
 # Code must be enclosed in Python tags
+your_code_here
+```
+
+Your output should be in the following format:
+[Planning]
+your_planning_here
+[Policy]
+```python
 your_code_here
 ```
 """
@@ -84,13 +110,17 @@ class ConversationFormatter(ConversationFormatter):
                     content=f"""
 {FINAL_INSTRUCTION}
                     
-## Planned Actions
+## Medium-Term Strategy
 {plan}
+
+## Entities on the Map
+{current_entities}
 
 ## Your Inventory
 {current_inventory}
 
-[Python code]
+Your Output:
+[Planning]
 """,
                 ),
             ]

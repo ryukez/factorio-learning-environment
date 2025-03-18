@@ -236,11 +236,8 @@ Output the summary only, do not include any other information.
 """
 
 
-def planning_prompt(
-    execution_log: str, instruction: str, entity_summary: str, inventory: str
-):
-    return (
-        """
+def planning_prompt(instruction: str, entity_summary: str, inventory: str):
+    return f"""
 # Factorio LLM Agent Instructions
 
 ## Overview
@@ -249,66 +246,11 @@ You are an AI agent designed to play Factorio, specializing in:
 - Spatial reasoning 
 - Systematic automation
 
-## Environment Structure
-- Operates like an interactive Python shell
-- Agent messages = Python programs to execute
-- User responses = STDOUT/STDERR from REPL
-- Interacts through 27 core API methods (to be specified)
-
-## Understanding Output
-
-### Error Messages
-```stderr
-Error: 1: ("Initial Inventory: {...}")
-10: ("Error occurred in following lines...")
-```
-- Numbers indicate line of execution
-- Previous lines executed successfully
-- Fix errors at indicated line
-
-### Status Updates
-```stdout
-23: ('Resource collection completed...')
-78: ('Entities on map: [...]')
-```
-- Shows execution progress
-- Provides entity status
-- Lists warnings and conditions
-
-### Entity Status Checking
-- Monitor entity `warnings` field
-- Check entity `status` field
-- Verify resource levels
-- Track production states
-
 ## Game Progression
 - Think about long term objectives, and break them down into smaller, manageable steps.
 - Advance toward more complex automation
 - Build on previous successes
 - Maintain efficient resource usage
-
-## Data Structures
-- Use Python's built-in data structures to organize entities
-- Sets for unique entity collections:
-```python
-working_furnaces = {e for e in get_entities() 
-                   if e.status == EntityStatus.WORKING}
-```
-- Dictionaries for entity mapping:
-```python
-furnace_by_position = {
-    (e.position.x, e.position.y): e 
-    for e in get_entities() 
-    if isinstance(e, Furnace)
-}
-```
-- Lists for ordered operations:
-```python
-sorted_furnaces = sorted(
-    get_entities(),
-    key=lambda e: (e.position.x, e.position.y)
-)
-```
 
 ## Important Notes
 - Use transport belts to keep burners fed with coal
@@ -320,21 +262,8 @@ sorted_furnaces = sorted(
 - Try to assign a specific and clear role to each entity, and ensure that it is working as expected. Check if similar entities are already present on the map. If exists, try to reuse them or fix the issues with them.
 
 ## Instruction
-Think through each step extensively in natural language, addressing:
-1. Error Analysis
-   - Was there an error in the previous execution?
-   - If yes, what was the problem?
-2. Next Step Planning
-   - What is the most useful next step of reasonable size?
-   - Why is this step valuable?
-   - Should I 
-3. Action Planning
-   - What specific actions are needed?
-   - What resources are required?
-"""
-        + f"""
-### Execution logs
-{execution_log}
+You are given the existing entities on map, your current inventory. 
+Your job is to plan a medium-term strategy to achieve the given task.
 
 ### Entities on map
 {entity_summary}
@@ -345,7 +274,6 @@ Think through each step extensively in natural language, addressing:
 ### Your objective
 {instruction}
 """
-    )
 
 
 def iteration_summary_prompt(
@@ -471,7 +399,6 @@ class BasicAgent(AgentABC):
             iteration=iteration,
             instruction=instruction,
         )
-        self.iteration = iteration
         self.instruction = instruction
 
     async def report_summary(
@@ -543,21 +470,12 @@ class BasicAgent(AgentABC):
         entity_summary = entity_summary_response.choices[0].message.content
 
         # 2. Generate plan
-        iteration_messages = []
-        for message in conversation.messages:
-            if message.metadata.get("iteration") == self.iteration:
-                iteration_messages.append(message)
-
-        execution_log = "\n".join(
-            [f"role: {m.role}\ncontent: {m.content}\n" for m in iteration_messages]
-        )
-
         plan_response = await self.llm_factory.acall(
             messages=[
                 {
                     "role": "user",
                     "content": planning_prompt(
-                        execution_log, self.instruction, entity_summary, inventory
+                        self.instruction, entity_summary, inventory
                     ),
                 }
             ],
@@ -602,7 +520,7 @@ class BasicAgent(AgentABC):
         )
 
         policy = parse_response(response)
-        policy.thinking = plan
+        policy.thinking = plan + "\n\n" + policy.thinking
         if not policy:
             raise Exception("Not a valid Python policy")
 

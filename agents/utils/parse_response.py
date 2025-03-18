@@ -23,6 +23,14 @@ def parse_response(response) -> Optional[Policy]:
     try:
         code, text_response = PythonParser.extract_code(choice)
 
+        splits = text_response.split("```python")
+
+        thinking = ""
+        if len(splits) > 1:
+            thinking = splits[0]
+            thinking = thinking.replace("[Planning]", "")
+            thinking = thinking.replace("[Policy]", "")
+
     except Exception as e:
         print(f"Failed to extract code from choice: {str(e)}")
         return None
@@ -31,7 +39,7 @@ def parse_response(response) -> Optional[Policy]:
         return None
 
     policy = Policy(
-        thinking="",
+        thinking=thinking,
         code=code,
         meta=PolicyMeta(
             output_tokens=output_tokens,
