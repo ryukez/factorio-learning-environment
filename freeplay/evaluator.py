@@ -66,6 +66,7 @@ class SimpleFactorioEvaluator:
                 response, task_response
             )
             conversation.add_result(
+                program.thinking,
                 program.code,
                 final_response,
                 iteration=iteration,
