@@ -5,9 +5,10 @@ from pydantic import BaseModel
 from models.achievements import ProductionFlows
 import datetime
 
+
 class Python(str):
     """A custom type that only accepts syntactically valid Python code."""
-    
+
     @classmethod
     def __get_validators__(cls):
         yield cls.validate
@@ -15,15 +16,15 @@ class Python(str):
     @classmethod
     def validate(cls, value, values=None, config=None, field=None) -> str:
         if not isinstance(value, str):
-            raise TypeError('string required')
+            raise TypeError("string required")
 
         try:
             # Try to parse the string as Python code
             ast.parse(value)
         except SyntaxError as e:
-            raise ValueError(f'Invalid Python syntax: {str(e)}')
+            raise ValueError(f"Invalid Python syntax: {str(e)}")
         except Exception as e:
-            raise ValueError(f'Error parsing Python code: {str(e)}')
+            raise ValueError(f"Error parsing Python code: {str(e)}")
 
         return value
 
@@ -34,13 +35,17 @@ class PolicyMeta(BaseModel):
     total_tokens: int
     text_response: str
 
+
 class Policy(BaseModel):
+    thinking: str
     code: Python
     meta: PolicyMeta
+
 
 class TaskResponse(BaseModel):
     meta: Dict[str, Any] = {}
     success: bool
+
 
 class Response(BaseModel):
     score: float
@@ -55,9 +60,10 @@ class Response(BaseModel):
 
 
 class CompletionReason(enum.Enum):
-    TIMEOUT = "timeout",
-    SUCCESS = "success",
+    TIMEOUT = ("timeout",)
+    SUCCESS = ("success",)
     RUNTIME_ERROR = "runtime_error"
+
 
 class CompletionResult(BaseModel):
     step: int

@@ -19,6 +19,14 @@ from agents import Response
 from eval.tasks.task_abc import TaskABC
 from eval.open.db_client import DBClient, SQLliteDBClient
 import os
+import json
+from typing import List
+from spreadsheet import (
+    insert_to_spreadsheet,
+    get_spreadsheet_values,
+    update_spreadsheet_cell,
+)
+from models.game_state import GameState
 
 load_dotenv()
 
@@ -40,7 +48,7 @@ class TrajectoryRunner:
 
     def __init__(
         self,
-        agent: AgentABC,
+        agent: BasicAgent,
         db_client: DBClient,
         evaluator: SimpleFactorioEvaluator,
         config: PlayConfig,
@@ -62,11 +70,15 @@ class TrajectoryRunner:
         conversation: Conversation,
         response: Response,
         namespace: FactorioNamespace,
+        entities: str,
+        inventory: str,
         meta={},
     ) -> Program:
         conversation = copy.deepcopy(conversation)
         try:
-            policy = await self.agent.step(conversation, response, namespace)
+            policy = await self.agent.step(
+                conversation, response, namespace, entities, inventory
+            )
 
             if not policy:
                 raise Exception("Policy not valid Python. Skipping.")
@@ -77,6 +89,7 @@ class TrajectoryRunner:
                 messages = conversation.dict()["messages"]
 
             program = Program(
+                thinking=policy.thinking,
                 code=policy.code,
                 conversation=conversation,
                 response=response.response if response else None,
@@ -125,6 +138,15 @@ class TrajectoryRunner:
                 instance = self.evaluator.instance
                 instance.reset(current_state)
 
+        # print(current_state.inventory)
+        # print(current_state.research)
+        # print(current_state.timestamp)
+        # print(
+        #     instance.namespace._load_entity_state(
+        #         current_state.entities, decompress=True
+        #     )
+        # )
+
         # New game
         if not current_state:
             current_state = self.agent.task.starting_game_state
@@ -150,106 +172,199 @@ class TrajectoryRunner:
             self.agent.conversation = current_conversation
             parent_id = None
 
+        # with open("entities.txt", "w") as f:
+        #     f.write(f"{instance.namespace.get_entities()}")
+        # with open("inventory.txt", "w") as f:
+        #     f.write(f"{instance.namespace.inspect_inventory()}")
+
+        # os.exit(1)
+
         last_response = None
         # Run trajectory
-        iteration = 0
+        STEPS_PER_ITERATION = 20
+        iteration = (depth // STEPS_PER_ITERATION) + 1
+
         while True:
             iteration += 1
+            print(f"### Iteration {iteration} ###")
+            current_entities = f"{instance.namespace.get_entities()}"
+            current_inventory = f"{instance.namespace.inspect_inventory()}"
 
-            time.sleep(COURTESY_SLEEP)  # courtesy sleep
-            try:
-                print("generation starting...")
-                program = await self._generate_program(
-                    self.agent.conversation,
-                    last_response,
-                    self.evaluator.instance.namespace,
-                )
+            (previous_iteration_summary,) = await self.agent.report_summary(
+                iteration=iteration - 1,
+                current_inventory=current_inventory,
+                current_entities=current_entities,
+                current_conversation=current_conversation,
+            )
 
-                print(
-                    f"Generated program {multiprocessing.current_process().name} - "
-                    f"Model: {self.agent.model} - "
-                    f"Iteration {iteration}/{self.agent.task.trajectory_length}"
-                )
+            update_spreadsheet_cell(
+                os.getenv("SPREADSHEET_ID"),
+                "System!B1",
+                f"[Iteration {iteration}] 指示の入力を待っています...",
+            )
 
-                if not program:
-                    continue
+            # 1分ごとにスプレッドシートにアクセスし、指示が更新されているかを確認
+            instruction = ""
+            while True:
+                try:
+                    user_input = get_spreadsheet_values(
+                        os.getenv("SPREADSHEET_ID"), "Input!E2:E3"
+                    )
+                    if user_input and int(user_input[0][0]) == iteration:
+                        instruction = user_input[1][0]
+                        break
+                except Exception as e:
+                    print(f"Error in getting instruction: {e}")
 
-                program.parent_id = parent_id
+                time.sleep(60)
 
-                # Evaluate program
-                instance = self.evaluator.instance
-                # instance.reset(current_state)
-                (
-                    evaluated_program,
-                    task_verification_response,
-                ) = await self.evaluator.evaluate(
-                    program, current_state, self.agent.task
-                )
-                print(program.code + "\n" + "=" * 50)
-                print(
-                    "\033[1m\n".join(
-                        [
-                            ">>>\t" + line
-                            for line in program.response.strip()
-                            .replace("\\n", "\n\t")
-                            .split("\n")
-                        ]
-                    ).strip()
-                    + "\033[0m"
-                )
-                print(
-                    f"Evaluated program {multiprocessing.current_process().name} - "
-                    f"Model: {self.agent.model} - "
-                    f"Iteration {iteration}/{self.agent.task.trajectory_length}"
-                )
+            await self.agent.start_iteration(
+                iteration=iteration,
+                instruction=instruction,
+                previous_iteration_summary=previous_iteration_summary,
+            )
 
-                if not evaluated_program:
-                    continue
+            update_spreadsheet_cell(
+                os.getenv("SPREADSHEET_ID"),
+                "System!B1",
+                f"[Iteration {iteration}] LLM実行中...",
+            )
 
-                program = evaluated_program
-                self.agent.conversation = program.conversation
-                program.meta["task_key"] = self.agent.task.task_key
-                last_response = Response(
-                    code=program.code,
-                    created_at=program.created_at,
-                    score=program.value,
-                    achievements=program.achievements,
-                    step=depth,
-                    ticks=program.ticks,
-                    flows=program.flows,
-                    response=program.response,
-                    task=task_verification_response,
-                )
+            # Save results to spreadsheet
+            insert_to_spreadsheet(
+                os.getenv("SPREADSHEET_ID"),
+                "Iterations!A1:Z",
+                [
+                    [
+                        self.config.version,
+                        self.config.model,
+                        iteration,
+                        instruction,
+                        current_entities,
+                        current_inventory,
+                        previous_iteration_summary,
+                    ],
+                ],
+            )
 
-                # Save program
-                saved_program = await self.db.create_program(program)
-                print(
-                    f"Saved program {multiprocessing.current_process().name} - "
-                    f"Model: {self.agent.model} - "
-                    f"Iteration {iteration}/{self.agent.task.trajectory_length}"
-                )
+            for step in range(STEPS_PER_ITERATION):
+                time.sleep(COURTESY_SLEEP)  # courtesy sleep
+                try:
+                    current_entities = f"{instance.namespace.get_entities()}"
+                    current_inventory = f"{instance.namespace.inspect_inventory()}"
 
-                parent_id = saved_program.id
-
-                # Update state for next iteration
-                if program.state:
-                    current_state = program.state
-                    current_conversation = program.conversation
-
-                if iteration % 10 == 0:
-                    elapsed = time.time() - self.start_time
-                    elapsed_str = f"{int(elapsed // 3600):02d}:{int((elapsed % 3600) // 60):02d}:{int(elapsed % 60):02d}"
-                    print(
-                        f"\033[92m Process {multiprocessing.current_process().name} - "
-                        f"Model: {self.agent.model} - "
-                        f"Iteration {iteration}/{self.agent.task.trajectory_length} - "
-                        f"Value: {program.value:.2f} - "
-                        f"Elapsed: {elapsed_str} - "
+                    print("generation starting...")
+                    program = await self._generate_program(
+                        current_conversation,
+                        last_response,
+                        self.evaluator.instance.namespace,
+                        entities=current_entities,
+                        inventory=current_inventory,
                     )
 
-            except Exception as e:
-                print(f"Error in iteration {iteration}: {e}")
-                continue
+                    print(
+                        f"Generated program {multiprocessing.current_process().name} - "
+                        f"Model: {self.agent.model} - "
+                        f"Step {iteration}-{step + 1}"
+                    )
+
+                    if not program:
+                        continue
+
+                    program.parent_id = parent_id
+
+                    # Evaluate program
+                    instance = self.evaluator.instance
+                    # instance.reset(current_state)
+                    (
+                        evaluated_program,
+                        task_verification_response,
+                    ) = await self.evaluator.evaluate(
+                        program, current_state, iteration, instruction, self.agent.task
+                    )
+                    print(program.code + "\n" + "=" * 50)
+                    print(
+                        "\033[1m\n".join(
+                            [
+                                ">>>\t" + line
+                                for line in program.response.strip()
+                                .replace("\\n", "\n\t")
+                                .split("\n")
+                            ]
+                        ).strip()
+                        + "\033[0m"
+                    )
+                    print(
+                        f"Evaluated program {multiprocessing.current_process().name} - "
+                        f"Model: {self.agent.model} - "
+                        f"Step {iteration}-{step + 1}"
+                    )
+
+                    if not evaluated_program:
+                        continue
+
+                    program = evaluated_program
+                    self.agent.conversation = program.conversation
+                    program.meta["task_key"] = self.agent.task.task_key
+                    last_response = Response(
+                        code=program.code,
+                        created_at=program.created_at,
+                        score=program.value,
+                        achievements=program.achievements,
+                        step=depth,
+                        ticks=program.ticks,
+                        flows=program.flows,
+                        response=program.response,
+                        task=task_verification_response,
+                    )
+
+                    # Save program
+                    saved_program = await self.db.create_program(program)
+                    print(
+                        f"Saved program {multiprocessing.current_process().name} - "
+                        f"Model: {self.agent.model} - "
+                        f"Step {iteration}-{step + 1}"
+                    )
+
+                    parent_id = saved_program.id
+
+                    # Save results to spreadsheet
+                    insert_to_spreadsheet(
+                        os.getenv("SPREADSHEET_ID"),
+                        "Steps!A1:Z",
+                        [
+                            [
+                                self.config.version,
+                                self.config.model,
+                                iteration,
+                                step,
+                                current_entities,
+                                current_inventory,
+                                program.thinking,
+                                program.code,
+                                program.response,
+                            ]
+                        ],
+                    )
+
+                    # Update state for next iteration
+                    if program.state:
+                        current_state = program.state
+                        current_conversation = program.conversation
+
+                except Exception as e:
+                    print(f"Error in Step {iteration}-{step + 1}: {e}")
+                    continue
+
+            elapsed = time.time() - self.start_time
+            elapsed_str = f"{int(elapsed // 3600):02d}:{int((elapsed % 3600) // 60):02d}:{int(elapsed % 60):02d}"
+            print(
+                f"\033[92m Process {multiprocessing.current_process().name} - "
+                f"Model: {self.agent.model} - "
+                f"Itertion {iteration} - "
+                f"Value: {program.value:.2f} - "
+                f"Elapsed: {elapsed_str} - "
+            )
 
 
 def create_factorio_instance(instance_id: int) -> FactorioInstance:

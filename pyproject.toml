@@ -18,6 +18,8 @@ dependencies = [
     "pillow>=11.1.0",
     "scikit-image>=0.25.2",
     "psycopg2-binary>=2.9.10",
+    "google-api-python-client>=2.164.0",
+    "google-auth>=2.38.0",
 ]
 
 [build-system]

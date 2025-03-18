@@ -18,6 +18,7 @@ from freeplay.recursive_report_formatter import RecursiveReportFormatter
 import logging
 
 from namespace import FactorioNamespace
+from freeplay.conversation_formatter import ConversationFormatter
 
 GENERAL_INSTRUCTIONS = """
 # Factorio LLM Agent Instructions
@@ -156,37 +157,127 @@ sorted_furnaces = sorted(
 - Ensure that your factory is arranged in a grid, as this will make things easier.
 """
 
-FINAL_INSTRUCTION = """"
-## Response Format
 
-### 1. PLANNING Stage
-Think through each step extensively in natural language, addressing:
-1. Error Analysis
-   - Was there an error in the previous execution?
-   - If yes, what was the problem?
-2. Next Step Planning
-   - What is the most useful next step of reasonable size?
-   - Why is this step valuable?
-   - Should I 
-3. Action Planning
-   - What specific actions are needed?
-   - What resources are required?
+def entity_summary_prompt(entities: str):
+    return f"""
+You are a report generating model for the game factorio. 
+Given existing entities, you must summarise what structures the agent has created on the map and what are the use-cases of those structures. You must also bring out the entities and positions of entities of each of those structures.
 
-### 2. POLICY Stage
-Write Python code to execute the planned actions:
-```python
-# Code must be enclosed in Python tags
-your_code_here
-```
+Focus on the structures themselves. Do not bring out entities separately, create sections like 
+###Electricity generator at position(x)
+Consists of steam engine(position x), boiler(position y) and offshore pump (position z)
 
-Your output should be in the following format:
-[Planning]
-your_planning_here
+###Copper plate mine at position(x)
+Consists of following entities
+-  Burner mining drill (position x1) and a furnace at position(y1)
+-  Burner mining drill (position x2) and a furnace at position(y2)
+-  Burner mining drill (position x3) and a furnace at position(y3)
 
-[Policy]
-```python
-your_code_here
-```
+###Copper cable factory
+Consists of following entities
+-  Burner mining drill (position x1) and a furnace at position(y1)
+-  Assembling machine at position(z1) and inserter at position(a) that puts into assembling machine
+-  Beltgroup (position ) that connects the furnace at position y1 to assembling machine at position(z1)
+
+- If multiple sections are connected, summarise them as one structure
+- Do not include any mention of harvesting or crafting activities. That is not the aim of this report and is self-evident as the agent can see its own inventory
+- All structures from the previous report that did not have any updates, include them in the new report unchanged
+
+Output the summary only, do not include any other information.
+
+[Input]
+{entities}
+
+[Output]
+"""
+
+
+def iteration_summary_prompt(
+    instruction: str, entities: str, inventory: str, logs: str
+):
+    return f"""
+You are an AI agent designed to play Factorio, specializing in:
+- Long-horizon planning
+- Spatial reasoning 
+- Systematic automation
+
+## Instruction
+You are given current existing entities, inventory state and logs you have executed in the game, during the previous interation.
+You have the following instruction from supervisor:
+
+[Task]
+Build a power plant, consisting of a offshore pomp, boiler, and steam engine.
+
+[Hints From Supervisor]
+- You need to prepare enough iron and copper plates first to craft facilities
+
+Based on the inventory state and execution logs, you must generate a report of the previous iteration.
+The report must have 3 sections: CHANGES, TASK COMPLETION ANALYSIS and ERROR TIPS. Below are instructions for both of them:
+
+CHANGES
+Describe what is done duration the iteration.
+- Newly built facilities with position
+- Obtained items
+- Working status changes of facilities
+
+Example:
+In the previous iteration, 
+- we built burner mining drill at position(x1). It is supplying iron ores to stone furnace nearby at position(x2). There iron ores are smelted into iron plates, and stored into a wooden chest at position(x3) by a burner inserter at position(x4).
+- now we have boiler and steam engine in the inventory, so we can place them in the neighbor of existing offshore pomp at position(x5) to build power plant!
+- The burner drill at position(x6) was not working due to insufficient fuel. I fixed the issue by feeding some coals. Because we have no automated coal supplies, I should feed them manually for a while when it is out of fuel.
+
+TASK COMPLETION ANALYSIS
+Analyze how is the task is going, given existing entities, inventory state and execution logs.
+If the given task is completed, you should summarize:
+- the entities related to the task, its status and positions
+- notes useful for the following actions
+
+If the task is not completed yet, you should summarize:
+- the remaining steps planned 
+- difficulties or obstacles you are facing
+- required items to complete the task
+
+Example:
+We have not yet built complete the task of building power plant.
+As the remaining steps, we need:
+- Get enough amount of iron and copper plates to craft offshore pomp, boiler and steam engine. We need more 30 iron plates and 3 copper plates.
+- Craft the entities
+- Connect them with pipes
+
+To get iron and copper plates, we can't craft them and need to smelt ores through furnaces.
+I have already built stone furnace for iron plates, but one for copper plates are not yet prepared.
+Next we need to build a stone furnace for copper ones. At the same time, coals and ores should be fed into the stone furnace of iron plates to get iron plates constantly.
+
+ERROR TIPS
+In this section you must analyse the errors that the agent has made and bring out tips how to mitigate these errors. 
+Usually error messages tell you what the agent did wrong. The errors can be incorrect use of API, misplaced objects etc. 
+Make this a succinct detailed list, group common similar error patterns and solutions how to avoid these errors. 
+Group similar mistakes, if the agent made the same mistake multiple times but at many places, bring it out as one section/bulletpoint. 
+Include new mistakes and all mistake tips from the previous report
+
+Make the sections accurate and thorough. Do not mention things like "The error message suggests" etc, this is self evident.
+Some examples
+
+### Errors when using extracting but being too far
+ -  Make sure to move to the target entity where you want to extract from before extracting items
+### Errors when placing into a tile which is occupied by another entity
+- Ensure you can place a entity to a tile before attempting placing
+
+You must output only the report. Any other texts are forbidden.
+
+## Instruction
+{instruction}
+
+## Entities
+{entities}
+
+## Inventory
+{inventory}
+
+## Execution Logs
+{logs}
+
+## Output
 """
 
 
@@ -208,28 +299,98 @@ class BasicAgent(AgentABC):
     def __init__(self, model, system_prompt, task, *args, **kwargs):
         self.task = task
         goal_description = f"\n\n### Your Final Goal\n{task.goal_description}\n\n"
-
-        instructions = (
-            GENERAL_INSTRUCTIONS + system_prompt + goal_description + FINAL_INSTRUCTION
-        )
-        print(instructions)
+        instructions = GENERAL_INSTRUCTIONS + system_prompt + goal_description
 
         super().__init__(model, instructions, *args, **kwargs)
         self.llm_factory = LLMFactory(model)
-        self.formatter = RecursiveReportFormatter(
-            chunk_size=16, llm_call=self.llm_factory.acall, cache_dir="summary_cache"
-        )
+        self.formatter = ConversationFormatter(instructions)
         self.generation_params = GenerationParameters(n=1, max_tokens=2048, model=model)
+
+    async def start_iteration(
+        self,
+        iteration: int,
+        instruction: str,
+        previous_iteration_summary: str,
+    ):
+        self.formatter.start_iteration(
+            iteration=iteration,
+            instruction=instruction,
+            previous_iteration_summary=previous_iteration_summary,
+        )
+
+    async def report_summary(
+        self,
+        iteration: int,
+        current_inventory: str,
+        current_entities: str,
+        current_conversation: Conversation,
+    ):
+        # entity_summary_response = await self.llm_factory.acall(
+        #     messages=[
+        #         {
+        #             "role": "user",
+        #             "content": entity_summary_prompt(entities),
+        #         }
+        #     ],
+        #     n_samples=1,  # We only need one program per iteration
+        #     temperature=self.generation_params.temperature,
+        #     max_tokens=16384,  # use longer max_tokens
+        #     model=self.generation_params.model,
+        # )
+        # entity_summary = entity_summary_response.choices[0].message.content
+
+        instruction = ""
+        iteration_messages = []
+        for message in current_conversation.messages:
+            if message.metadata.get("iteration") == iteration:
+                iteration_messages.append(message)
+                instruction = message.metadata.get("instruction")
+
+        iteration_summary = ""
+        if iteration_messages:
+            iteration_summary_response = await self.llm_factory.acall(
+                messages=[
+                    {
+                        "role": "user",
+                        "content": iteration_summary_prompt(
+                            instruction,
+                            current_entities,
+                            current_inventory,
+                            "\n".join(
+                                [
+                                    f"role: {m.role}\ncontent: {m.content}\n"
+                                    for m in iteration_messages
+                                ]
+                            ),
+                        ),
+                    }
+                ],
+                n_samples=1,  # We only need one program per iteration
+                temperature=self.generation_params.temperature,
+                max_tokens=2048,  # use longer max_tokens
+                model=self.generation_params.model,
+            )
+            iteration_summary = iteration_summary_response.choices[0].message.content
+
+        return (
+            # entity_summary,
+            f"{iteration_summary}",
+        )
 
     async def step(
         self,
         conversation: Conversation,
         response: Response,
         namespace: FactorioNamespace,
+        entities: str,
+        inventory: str,
     ) -> Policy:
         # We format the conversation every N steps to add a context summary to the system prompt
         formatted_conversation = await self.formatter.format_conversation(
-            conversation, namespace
+            conversation,
+            namespace,
+            entities,
+            inventory,
         )
         # We set the new conversation state for external use
         self.set_conversation(formatted_conversation)
@@ -243,16 +404,10 @@ class BasicAgent(AgentABC):
         stop=stop_after_attempt(3),
     )
     async def _get_policy(self, conversation: Conversation):
-        with open("instruction.txt", "r") as f:
-            instruction = f.read()
-
         messages = self.formatter.to_llm_messages(conversation)
-        messages.append(
-            {
-                "role": "user",
-                "content": f"{instruction}\n## Your output\n[Planning]",
-            }
-        )
+
+        with open("messages.json", "w") as f:
+            json.dump(messages, f)
 
         response = await self.llm_factory.acall(
             messages=messages,
@@ -261,18 +416,6 @@ class BasicAgent(AgentABC):
             max_tokens=self.generation_params.max_tokens,
             model=self.generation_params.model,
         )
-
-        text: str = response.choices[0].message.content
-        splits = text.split("```python")
-
-        thinking = ""
-        if len(splits) > 1:
-            thinking = splits[0]
-            thinking = thinking.replace("[Planning]", "")
-            thinking = thinking.replace("[Policy]", "")
-
-        with open("thinking.txt", "w") as f:
-            f.write(thinking)
 
         policy = parse_response(response)
         if not policy:
