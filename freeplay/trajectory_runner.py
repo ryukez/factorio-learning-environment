@@ -21,7 +21,7 @@ from eval.open.db_client import DBClient, SQLliteDBClient
 import os
 import json
 from typing import List
-from spreadsheet import insert_to_spreadsheet
+from spreadsheet import insert_to_spreadsheet, get_spreadsheet_values
 from models.game_state import GameState
 
 load_dotenv()
@@ -186,19 +186,29 @@ class TrajectoryRunner:
             current_entities = f"{instance.namespace.get_entities()}"
             current_inventory = f"{instance.namespace.inspect_inventory()}"
 
-            previous_iteration_summary = await self.agent.report_summary(
+            (previous_iteration_summary,) = await self.agent.report_summary(
                 iteration=iteration - 1,
                 current_inventory=current_inventory,
                 current_entities=current_entities,
                 current_conversation=current_conversation,
             )
 
-            input(
-                "Waiting for user input. Input instructions into 'instruction.txt' and press Enter to continue..."
-            )
+            print("Waiting for instruction...")
 
-            with open("instruction.txt", "r") as f:
-                instruction = f.read()
+            # 1分ごとにスプレッドシートにアクセスし、指示が更新されているかを確認
+            instruction = ""
+            while True:
+                try:
+                    user_input = get_spreadsheet_values(
+                        os.getenv("SPREADSHEET_ID"), "Input!E2:E3"
+                    )
+                    if user_input and int(user_input[0][0]) == iteration:
+                        instruction = user_input[1][0]
+                        break
+                except Exception as e:
+                    print(f"Error in getting instruction: {e}")
+
+                time.sleep(60)
 
             await self.agent.start_iteration(
                 iteration=iteration,

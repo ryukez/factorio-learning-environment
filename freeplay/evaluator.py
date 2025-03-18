@@ -104,8 +104,8 @@ class SimpleFactorioEvaluator:
         try:
             # Get initial state information
 
-            start_entities = instance.namespace.get_entities()
-            start_inventory = instance.namespace.inspect_inventory()
+            # start_entities = instance.namespace.get_entities()
+            # start_inventory = instance.namespace.inspect_inventory()
             # start_production_flows = instance.namespace._get_production_stats()
             start_production_flows = ProductionFlows.from_dict(
                 instance.namespace._get_production_stats()
@@ -115,45 +115,45 @@ class SimpleFactorioEvaluator:
             reward, time, result = instance.eval(program.code, timeout=60)
 
             entities = instance.namespace.get_entities()
-            final_inventory = instance.namespace.inspect_inventory()
+            # final_inventory = instance.namespace.inspect_inventory()
 
-            # Check to see if the inventories are different
-            # If so, we manually put a hint in the generated code and result from the game
-            get_inventory_code = 'print(f"Current inventory {inspect_inventory()}")'
-            if (
-                start_inventory.__dict__ != final_inventory.__dict__
-                and "error" not in result.lower()
-                and get_inventory_code not in program.code
-                and "inspect_inventory()" not in program.code
-            ):
-                program.code += f"\n{get_inventory_code}"
-                result += (
-                    f"\n"
-                    + str(len(program.code.split("\n")))
-                    + f": ('Current inventory {final_inventory}',)"
-                )
+            # # Check to see if the inventories are different
+            # # If so, we manually put a hint in the generated code and result from the game
+            # get_inventory_code = 'print(f"Current inventory {inspect_inventory()}")'
+            # if (
+            #     start_inventory.__dict__ != final_inventory.__dict__
+            #     and "error" not in result.lower()
+            #     and get_inventory_code not in program.code
+            #     and "inspect_inventory()" not in program.code
+            # ):
+            #     program.code += f"\n{get_inventory_code}"
+            #     result += (
+            #         f"\n"
+            #         + str(len(program.code.split("\n")))
+            #         + f": ('Current inventory {final_inventory}',)"
+            #     )
 
-            # Check to see if the entities are different
-            # If they are, we put a hint in the code AND result
-            get_entities_code = 'print(f"Entities on the map: {get_entities()}")'
-            if (
-                start_entities != entities
-                and "error" not in result.lower()
-                and get_entities_code not in program.code
-                and "get_entities()" not in program.code
-            ):
-                program.code += f"\n{get_entities_code}\n"
-                result += (
-                    "\n"
-                    + str(len(program.code.split("\n")))
-                    + f": ('Entities on the map: {entities}',)"
-                )
+            # # Check to see if the entities are different
+            # # If they are, we put a hint in the code AND result
+            # get_entities_code = 'print(f"Entities on the map: {get_entities()}")'
+            # if (
+            #     start_entities != entities
+            #     and "error" not in result.lower()
+            #     and get_entities_code not in program.code
+            #     and "get_entities()" not in program.code
+            # ):
+            #     program.code += f"\n{get_entities_code}\n"
+            #     result += (
+            #         "\n"
+            #         + str(len(program.code.split("\n")))
+            #         + f": ('Entities on the map: {entities}',)"
+            #     )
 
             result = result.rstrip() + "\n"
 
-            if "error" in result.lower():
-                result += f"final: ('Current inventory: {final_inventory}',)\n"
-                result += f"final: ('Entities on the map after the current step: {entities}',)"
+            # if "error" in result.lower():
+            #     result += f"final: ('Current inventory: {final_inventory}',)\n"
+            #     result += f"final: ('Entities on the map after the current step: {entities}',)"
 
             # Sleep for 3 seconds to get output flows
             await asyncio.sleep(self.value_accrual_time)

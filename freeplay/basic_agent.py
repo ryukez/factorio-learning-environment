@@ -374,7 +374,7 @@ class BasicAgent(AgentABC):
 
         return (
             # entity_summary,
-            iteration_summary,
+            f"{iteration_summary}",
         )
 
     async def step(
