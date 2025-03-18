@@ -67,8 +67,6 @@ class ConversationFormatter(ConversationFormatter):
         updated_system_prompt = f"""
 {self.system_prompt}
 
-{FINAL_INSTRUCTION}
-
 {self.instruction}
 """
 
@@ -84,13 +82,15 @@ class ConversationFormatter(ConversationFormatter):
                 Message(
                     role="user",
                     content=f"""
+{FINAL_INSTRUCTION}
+                    
 ## Planned Actions
 {plan}
 
 ## Your Inventory
 {current_inventory}
 
-[Policy]
+[Python code]
 """,
                 ),
             ]
