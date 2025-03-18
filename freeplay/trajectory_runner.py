@@ -181,7 +181,7 @@ class TrajectoryRunner:
 
         last_response = None
         # Run trajectory
-        STEPS_PER_ITERATION = 20
+        STEPS_PER_ITERATION = 50
         iteration = (depth // STEPS_PER_ITERATION) + 1
 
         current_entities = f"{instance.namespace.get_entities()}"
@@ -280,7 +280,8 @@ class TrajectoryRunner:
                                 self.config.version,
                                 self.config.model,
                                 iteration,
-                                step,
+                                step + 1,
+                                program.depth // 2,
                                 current_entities,
                                 current_inventory,
                                 program.thinking,
@@ -352,7 +353,7 @@ class TrajectoryRunner:
                     if step_row_number:
                         update_spreadsheet_cell(
                             os.getenv("SPREADSHEET_ID"),
-                            f"Steps!I{step_row_number}",
+                            f"Steps!J{step_row_number}",
                             program.response,
                         )
 
