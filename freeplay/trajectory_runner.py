@@ -181,18 +181,18 @@ class TrajectoryRunner:
 
         last_response = None
         # Run trajectory
-        STEPS_PER_ITERATION = 50
+        STEPS_PER_ITERATION = 30
         iteration = (depth // STEPS_PER_ITERATION) + 1
 
         current_entities = f"{instance.namespace.get_entities()}"
         current_inventory = f"{instance.namespace.inspect_inventory()}"
 
-        (previous_iteration_summary,) = await self.agent.report_summary(
-            iteration=iteration,
-            current_inventory=current_inventory,
-            current_entities=current_entities,
-            current_conversation=current_conversation,
-        )
+        # (previous_iteration_summary,) = await self.agent.report_summary(
+        #     iteration=iteration,
+        #     current_inventory=current_inventory,
+        #     current_entities=current_entities,
+        #     current_conversation=current_conversation,
+        # )
 
         while True:
             iteration += 1
@@ -222,7 +222,6 @@ class TrajectoryRunner:
             await self.agent.start_iteration(
                 iteration=iteration,
                 instruction=instruction,
-                previous_iteration_summary=previous_iteration_summary,
             )
 
             update_spreadsheet_cell(
@@ -362,6 +361,9 @@ class TrajectoryRunner:
                         current_state = program.state
                         current_conversation = program.conversation
 
+                    with open("messages.json", "w") as f:
+                        json.dump(current_conversation.messages, f, indent=2)
+
                 except Exception as e:
                     print(f"Error in Step {iteration}-{step + 1}: {e}")
                     continue
@@ -369,19 +371,19 @@ class TrajectoryRunner:
             current_entities = f"{instance.namespace.get_entities()}"
             current_inventory = f"{instance.namespace.inspect_inventory()}"
 
-            (previous_iteration_summary,) = await self.agent.report_summary(
-                iteration=iteration,
-                current_inventory=current_inventory,
-                current_entities=current_entities,
-                current_conversation=current_conversation,
-            )
+            # (previous_iteration_summary,) = await self.agent.report_summary(
+            #     iteration=iteration,
+            #     current_inventory=current_inventory,
+            #     current_entities=current_entities,
+            #     current_conversation=current_conversation,
+            # )
 
-            if iteration_row_number:
-                update_spreadsheet_cell(
-                    os.getenv("SPREADSHEET_ID"),
-                    f"Iterations!G{iteration_row_number}",
-                    previous_iteration_summary,
-                )
+            # if iteration_row_number:
+            #     update_spreadsheet_cell(
+            #         os.getenv("SPREADSHEET_ID"),
+            #         f"Iterations!G{iteration_row_number}",
+            #         previous_iteration_summary,
+            #     )
 
             elapsed = time.time() - self.start_time
             elapsed_str = f"{int(elapsed // 3600):02d}:{int((elapsed % 3600) // 60):02d}:{int(elapsed % 60):02d}"
