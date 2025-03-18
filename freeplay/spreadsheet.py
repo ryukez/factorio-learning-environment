@@ -112,6 +112,10 @@ def insert_to_spreadsheet(spreadsheet_id, range_name, values, max_retries=3):
         spreadsheet_id (str): スプレッドシートのID
         range_name (str): データを挿入する範囲（例：'Sheet1!A1:B2'）
         values (list): 挿入するデータ（2次元配列）
+
+    Returns:
+        tuple: (result, row_number) resultはAPIレスポンス、row_numberは挿入された最初の行番号
+              エラー時は (None, None)
     """
     for attempt in range(max_retries):
         try:
@@ -142,7 +146,19 @@ def insert_to_spreadsheet(spreadsheet_id, range_name, values, max_retries=3):
             )
 
             print(f"{len(values)} 行のデータを追加しました。")
-            return result
+            # updatedRangeから行番号を抽出 (例: 'Sheet1!A371:B371' -> 371)
+            updated_range = result.get("updates", {}).get("updatedRange", "")
+            row_number = None
+            if updated_range:
+                # 'Sheet1!A371:B371' から '371' を抽出
+                try:
+                    row_number = int(
+                        "".join(filter(str.isdigit, updated_range.split(":")[0]))
+                    )
+                except (ValueError, IndexError):
+                    print("行番号の抽出に失敗しました。")
+
+            return result, row_number
 
         except HttpError as error:
             print(f"試行 {attempt + 1}/{max_retries} でエラーが発生しました: {error}")
@@ -151,4 +167,4 @@ def insert_to_spreadsheet(spreadsheet_id, range_name, values, max_retries=3):
                 time.sleep(60)
             else:
                 print("最大リトライ回数に達しました。")
-                return None
+                return None, None

@@ -184,18 +184,19 @@ class TrajectoryRunner:
         STEPS_PER_ITERATION = 20
         iteration = (depth // STEPS_PER_ITERATION) + 1
 
+        current_entities = f"{instance.namespace.get_entities()}"
+        current_inventory = f"{instance.namespace.inspect_inventory()}"
+
+        (previous_iteration_summary,) = await self.agent.report_summary(
+            iteration=iteration,
+            current_inventory=current_inventory,
+            current_entities=current_entities,
+            current_conversation=current_conversation,
+        )
+
         while True:
             iteration += 1
             print(f"### Iteration {iteration} ###")
-            current_entities = f"{instance.namespace.get_entities()}"
-            current_inventory = f"{instance.namespace.inspect_inventory()}"
-
-            (previous_iteration_summary,) = await self.agent.report_summary(
-                iteration=iteration - 1,
-                current_inventory=current_inventory,
-                current_entities=current_entities,
-                current_conversation=current_conversation,
-            )
 
             update_spreadsheet_cell(
                 os.getenv("SPREADSHEET_ID"),
@@ -230,8 +231,11 @@ class TrajectoryRunner:
                 f"[Iteration {iteration}] LLM実行中...",
             )
 
+            current_entities = f"{instance.namespace.get_entities()}"
+            current_inventory = f"{instance.namespace.inspect_inventory()}"
+
             # Save results to spreadsheet
-            insert_to_spreadsheet(
+            (_, iteration_row_number) = insert_to_spreadsheet(
                 os.getenv("SPREADSHEET_ID"),
                 "Iterations!A1:Z",
                 [
@@ -242,7 +246,6 @@ class TrajectoryRunner:
                         instruction,
                         current_entities,
                         current_inventory,
-                        previous_iteration_summary,
                     ],
                 ],
             )
@@ -266,6 +269,24 @@ class TrajectoryRunner:
                         f"Generated program {multiprocessing.current_process().name} - "
                         f"Model: {self.agent.model} - "
                         f"Step {iteration}-{step + 1}"
+                    )
+
+                    # Save results to spreadsheet
+                    (_, step_row_number) = insert_to_spreadsheet(
+                        os.getenv("SPREADSHEET_ID"),
+                        "Steps!A1:Z",
+                        [
+                            [
+                                self.config.version,
+                                self.config.model,
+                                iteration,
+                                step,
+                                current_entities,
+                                current_inventory,
+                                program.thinking,
+                                program.code,
+                            ]
+                        ],
                     )
 
                     if not program:
@@ -328,24 +349,12 @@ class TrajectoryRunner:
 
                     parent_id = saved_program.id
 
-                    # Save results to spreadsheet
-                    insert_to_spreadsheet(
-                        os.getenv("SPREADSHEET_ID"),
-                        "Steps!A1:Z",
-                        [
-                            [
-                                self.config.version,
-                                self.config.model,
-                                iteration,
-                                step,
-                                current_entities,
-                                current_inventory,
-                                program.thinking,
-                                program.code,
-                                program.response,
-                            ]
-                        ],
-                    )
+                    if step_row_number:
+                        update_spreadsheet_cell(
+                            os.getenv("SPREADSHEET_ID"),
+                            f"Steps!I{step_row_number}",
+                            program.response,
+                        )
 
                     # Update state for next iteration
                     if program.state:
@@ -355,6 +364,23 @@ class TrajectoryRunner:
                 except Exception as e:
                     print(f"Error in Step {iteration}-{step + 1}: {e}")
                     continue
+
+            current_entities = f"{instance.namespace.get_entities()}"
+            current_inventory = f"{instance.namespace.inspect_inventory()}"
+
+            (previous_iteration_summary,) = await self.agent.report_summary(
+                iteration=iteration,
+                current_inventory=current_inventory,
+                current_entities=current_entities,
+                current_conversation=current_conversation,
+            )
+
+            if iteration_row_number:
+                update_spreadsheet_cell(
+                    os.getenv("SPREADSHEET_ID"),
+                    f"Iterations!G{iteration_row_number}",
+                    previous_iteration_summary,
+                )
 
             elapsed = time.time() - self.start_time
             elapsed_str = f"{int(elapsed // 3600):02d}:{int((elapsed % 3600) // 60):02d}:{int(elapsed % 60):02d}"

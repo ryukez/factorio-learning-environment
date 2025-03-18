@@ -117,7 +117,7 @@ class ConversationFormatter(ConversationFormatter):
             + [
                 Message(
                     role="user",
-                    content="Your output\n[Planning]",
+                    content="Remember that your python code must be always enclosed with ```python ... ``` decorator. It's very import for parsing your code. It you can't, you will be fired.\n\nYour output\n[Planning]",
                 ),
             ]
         )
