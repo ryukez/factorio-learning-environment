@@ -398,6 +398,7 @@ class BasicAgent(AgentABC):
             iteration=iteration,
             instruction=instruction,
         )
+        self.iteration = iteration
         self.instruction = instruction
 
     async def report_summary(
