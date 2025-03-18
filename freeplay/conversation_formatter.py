@@ -61,9 +61,11 @@ class ConversationFormatter(ConversationFormatter):
         self,
         iteration: int,
         instruction: str,
+        previous_iteration_summary: str,
     ):
         self.iteration = iteration
         self.instruction = instruction
+        self.previous_iteration_summary = previous_iteration_summary
 
     async def format_conversation(
         self,
@@ -109,7 +111,10 @@ class ConversationFormatter(ConversationFormatter):
                     role="user",
                     content=f"""
 {FINAL_INSTRUCTION}
-                    
+
+## Learnings from Previous Iteration
+{self.previous_iteration_summary}
+
 ## Medium-Term Strategy
 {plan}
 

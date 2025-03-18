@@ -286,51 +286,9 @@ You are an AI agent designed to play Factorio, specializing in:
 - Systematic automation
 
 ## Instruction
-You are given current existing entities, inventory state and logs you have executed in the game, during the previous interation.
-You have the following instruction from supervisor:
-
-[Task]
-Build a power plant, consisting of a offshore pomp, boiler, and steam engine.
-
-[Hints From Supervisor]
-- You need to prepare enough iron and copper plates first to craft facilities
-
-Based on the inventory state and execution logs, you must generate a report of the previous iteration.
-The report must have 3 sections: CHANGES, TASK COMPLETION ANALYSIS and ERROR TIPS. Below are instructions for both of them:
-
-CHANGES
-Describe what is done duration the iteration.
-- Newly built facilities with position
-- Obtained items
-- Working status changes of facilities
-
-Example:
-In the previous iteration, 
-- we built burner mining drill at position(x1). It is supplying iron ores to stone furnace nearby at position(x2). There iron ores are smelted into iron plates, and stored into a wooden chest at position(x3) by a burner inserter at position(x4).
-- now we have boiler and steam engine in the inventory, so we can place them in the neighbor of existing offshore pomp at position(x5) to build power plant!
-- The burner drill at position(x6) was not working due to insufficient fuel. I fixed the issue by feeding some coals. Because we have no automated coal supplies, I should feed them manually for a while when it is out of fuel.
-
-TASK COMPLETION ANALYSIS
-Analyze how is the task is going, given existing entities, inventory state and execution logs.
-If the given task is completed, you should summarize:
-- the entities related to the task, its status and positions
-- notes useful for the following actions
-
-If the task is not completed yet, you should summarize:
-- the remaining steps planned 
-- difficulties or obstacles you are facing
-- required items to complete the task
-
-Example:
-We have not yet built complete the task of building power plant.
-As the remaining steps, we need:
-- Get enough amount of iron and copper plates to craft offshore pomp, boiler and steam engine. We need more 30 iron plates and 3 copper plates.
-- Craft the entities
-- Connect them with pipes
-
-To get iron and copper plates, we can't craft them and need to smelt ores through furnaces.
-I have already built stone furnace for iron plates, but one for copper plates are not yet prepared.
-Next we need to build a stone furnace for copper ones. At the same time, coals and ores should be fed into the stone furnace of iron plates to get iron plates constantly.
+You are given execution logs you have executed in the game, during the previous interation.
+Based on the execution logs, you must generate a report of the previous iteration.
+The report must have ERROR_TIPS section. Below is the structure:
 
 ERROR TIPS
 In this section you must analyse the errors that the agent has made and bring out tips how to mitigate these errors. 
@@ -348,15 +306,6 @@ Some examples
 - Ensure you can place a entity to a tile before attempting placing
 
 You must output only the report. Any other texts are forbidden.
-
-## Instruction
-{instruction}
-
-## Entities
-{entities}
-
-## Inventory
-{inventory}
 
 ## Execution Logs
 {logs}
@@ -394,10 +343,12 @@ class BasicAgent(AgentABC):
         self,
         iteration: int,
         instruction: str,
+        previous_iteration_summary: str,
     ):
         self.formatter.start_iteration(
             iteration=iteration,
             instruction=instruction,
+            previous_iteration_summary=previous_iteration_summary,
         )
         self.instruction = instruction
 
