@@ -13,6 +13,14 @@ import copy
 from namespace import FactorioNamespace
 
 FINAL_INSTRUCTION = """"
+## Step Input
+You are given updated state of existing entities on map and your inventory at each step.
+You are supposed to take a look at these information carefully to plan your next step.
+
+- You can place nothing but entities in your current inventory. If you don't have any entities in your inventory, you need to get them first by crafting, harvesting or smelting etc.
+- Try to understand the role of each exsting entities on map. For example, one stone furnace might be used to smelt iron ore into iron plates, while another one might be used to smelt copper ore into copper plates, or to smelt iron plates into steel plates.
+- In opposite, not-working entities have no use in the game. If you need to place some entities, you should first consider replacing existing ones. Example abundoned pipes or belts, not-working inserters, or empty chests.
+
 ## Response Format
 
 ### 1. PLANNING Stage
@@ -95,12 +103,6 @@ class ConversationFormatter(ConversationFormatter):
 ## Previous Iteration Summary
 {self.previous_iteration_summary}
 
-## Existing Entities
-{current_entities}
-
-## Current Inventory
-{current_inventory}
-
 {FINAL_INSTRUCTION}
 
 {self.instruction}
@@ -117,7 +119,17 @@ class ConversationFormatter(ConversationFormatter):
             + [
                 Message(
                     role="user",
-                    content="Remember that your python code must be always enclosed with ```python ... ``` decorator. It's very import for parsing your code. It you can't, you will be fired.\n\nYour output\n[Planning]",
+                    content=f"""
+## Existing Entities on Map
+{current_entities}
+
+## Your Inventory
+{current_inventory}
+
+Remember that your python code must be always enclosed with ```python ... ``` decorator. It's very import for parsing your code. It you can't, you will be fired.
+
+Your output
+[Planning]""",
                 ),
             ]
         )

@@ -155,6 +155,7 @@ sorted_furnaces = sorted(
 - Do not encapsulate your code in a function _unless_ you are writing a utility for future use - just write it as if you were typing directly into the Python interpreter.
 - Your inventory has space for ~2000 items. If it fills up, insert the items into a chest.
 - Ensure that your factory is arranged in a grid, as this will make things easier.
+- Try to assign a specific and clear role to each entity, and ensure that it is working as expected. Check if similar entities are already present on the map. If exists, try to reuse them or fix the issues with them.
 """
 
 
