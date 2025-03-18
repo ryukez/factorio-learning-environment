@@ -362,6 +362,15 @@ class TrajectoryRunner:
                         current_state = program.state
                         current_conversation = program.conversation
 
+                    with open("messages.json", "w") as f:
+                        json.dump(
+                            [
+                                {"role": m.role, "content": m.content}
+                                for m in current_conversation.messages
+                            ],
+                            f,
+                        )
+
                 except Exception as e:
                     print(f"Error in Step {iteration}-{step + 1}: {e}")
                     continue

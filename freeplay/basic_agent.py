@@ -161,6 +161,29 @@ sorted_furnaces = sorted(
 
 def entity_summary_prompt(entities: str):
     return f"""
+# Factorio LLM Agent Instructions
+## Overview
+You are an AI agent designed to play Factorio, specializing in:
+- Long-horizon planning
+- Spatial reasoning 
+- Systematic automation
+
+## Game Progression
+- Think about long term objectives, and break them down into smaller, manageable steps.
+- Advance toward more complex automation
+- Build on previous successes
+- Maintain efficient resource usage
+
+## Important Notes
+- Use transport belts to keep burners fed with coal
+- Consider long-term implications of actions
+- Maintain working systems, and clear entities that aren't working or don't have a clear purpose
+- Build incrementally and verify each step
+- Your inventory has space for ~2000 items. If it fills up, insert the items into a chest.
+- Ensure that your factory is arranged in a grid, as this will make things easier.
+- Try to assign a specific and clear role to each entity, and ensure that it is working as expected. Check if similar entities are already present on the map. If exists, try to reuse them or fix the issues with them.
+
+## Instruction
 You are a report generating model for the game factorio. 
 Given existing entities, you must summarise what structures the agent has created on the map and what are the use-cases of those structures. You must also bring out the entities and positions of entities of each of those structures.
 
@@ -168,17 +191,33 @@ Focus on the structures themselves. Do not bring out entities separately, create
 ###Electricity generator at position(x)
 Consists of steam engine(position x), boiler(position y) and offshore pump (position z)
 
+Role:
+- Generator produces electricity by burning fuel. It supplies electricity to nearby entities through electric poles.
+Issues:
+- It is working as expected
+- However, the fuel supply is not automated. We need to automate the coal supply to the boiler occasionally.
+
 ###Copper plate mine at position(x)
 Consists of following entities
 -  Burner mining drill (position x1) and a furnace at position(y1)
 -  Burner mining drill (position x2) and a furnace at position(y2)
 -  Burner mining drill (position x3) and a furnace at position(y3)
 
+Role:
+- Mines copper ore and smelts it into copper plates
+Issues:
+- The burner mining drill at position x3 is not working due to lack of fuel. We need to supply coal to it.
+
 ###Copper cable factory
 Consists of following entities
 -  Burner mining drill (position x1) and a furnace at position(y1)
 -  Assembling machine at position(z1) and inserter at position(a) that puts into assembling machine
 -  Beltgroup (position ) that connects the furnace at position y1 to assembling machine at position(z1)
+
+Role:
+- Produces copper cables from copper plates
+Issues:
+- No issues. It is working as expected.
 
 - If multiple sections are connected, summarise them as one structure
 - Do not include any mention of harvesting or crafting activities. That is not the aim of this report and is self-evident as the agent can see its own inventory
@@ -213,19 +252,7 @@ Build a power plant, consisting of a offshore pomp, boiler, and steam engine.
 - You need to prepare enough iron and copper plates first to craft facilities
 
 Based on the inventory state and execution logs, you must generate a report of the previous iteration.
-The report must have 3 sections: CHANGES, TASK COMPLETION ANALYSIS and ERROR TIPS. Below are instructions for both of them:
-
-CHANGES
-Describe what is done duration the iteration.
-- Newly built facilities with position
-- Obtained items
-- Working status changes of facilities
-
-Example:
-In the previous iteration, 
-- we built burner mining drill at position(x1). It is supplying iron ores to stone furnace nearby at position(x2). There iron ores are smelted into iron plates, and stored into a wooden chest at position(x3) by a burner inserter at position(x4).
-- now we have boiler and steam engine in the inventory, so we can place them in the neighbor of existing offshore pomp at position(x5) to build power plant!
-- The burner drill at position(x6) was not working due to insufficient fuel. I fixed the issue by feeding some coals. Because we have no automated coal supplies, I should feed them manually for a while when it is out of fuel.
+The report must have 2 sections: CHANGES, TASK COMPLETION ANALYSIS and ERROR TIPS. Below are instructions for both of them:
 
 TASK COMPLETION ANALYSIS
 Analyze how is the task is going, given existing entities, inventory state and execution logs.
@@ -326,20 +353,6 @@ class BasicAgent(AgentABC):
         current_entities: str,
         current_conversation: Conversation,
     ):
-        # entity_summary_response = await self.llm_factory.acall(
-        #     messages=[
-        #         {
-        #             "role": "user",
-        #             "content": entity_summary_prompt(entities),
-        #         }
-        #     ],
-        #     n_samples=1,  # We only need one program per iteration
-        #     temperature=self.generation_params.temperature,
-        #     max_tokens=16384,  # use longer max_tokens
-        #     model=self.generation_params.model,
-        # )
-        # entity_summary = entity_summary_response.choices[0].message.content
-
         instruction = ""
         iteration_messages = []
         for message in current_conversation.messages:
@@ -386,11 +399,25 @@ class BasicAgent(AgentABC):
         entities: str,
         inventory: str,
     ) -> Policy:
+        entity_summary_response = await self.llm_factory.acall(
+            messages=[
+                {
+                    "role": "user",
+                    "content": entity_summary_prompt(entities),
+                }
+            ],
+            n_samples=1,  # We only need one program per iteration
+            temperature=self.generation_params.temperature,
+            max_tokens=16384,  # use longer max_tokens
+            model=self.generation_params.model,
+        )
+        entity_summary = entity_summary_response.choices[0].message.content
+
         # We format the conversation every N steps to add a context summary to the system prompt
         formatted_conversation = await self.formatter.format_conversation(
             conversation,
             namespace,
-            entities,
+            entity_summary,
             inventory,
         )
         # We set the new conversation state for external use

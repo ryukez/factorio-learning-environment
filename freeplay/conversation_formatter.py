@@ -77,7 +77,7 @@ class ConversationFormatter(ConversationFormatter):
         self,
         conversation: Conversation,
         namespace: FactorioNamespace,
-        current_entities: str,
+        entity_summary: str,
         current_inventory: str,
     ) -> Conversation:
         """
@@ -121,7 +121,7 @@ class ConversationFormatter(ConversationFormatter):
                     role="user",
                     content=f"""
 ## Existing Entities on Map
-{current_entities}
+{entity_summary}
 
 ## Your Inventory
 {current_inventory}
