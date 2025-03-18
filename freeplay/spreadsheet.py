@@ -49,6 +49,61 @@ def get_spreadsheet_values(spreadsheet_id, range_name, max_retries=3):
                 return None
 
 
+def update_spreadsheet_cell(spreadsheet_id, range_name, value, max_retries=3):
+    """
+    スプレッドシートの特定のセルを更新する関数
+
+    Args:
+        spreadsheet_id (str): スプレッドシートのID
+        range_name (str): 更新するセルの範囲（例：'Sheet1!A1'）
+        value: 更新する値
+        max_retries (int): 最大リトライ回数
+
+    Returns:
+        dict: 更新結果、エラー時はNone
+    """
+    for attempt in range(max_retries):
+        try:
+            # サービスアカウントの認証情報JSONファイルから認証情報を作成
+            creds = Credentials.from_service_account_file(
+                "credentials/google.json",
+                scopes=["https://www.googleapis.com/auth/spreadsheets"],
+            )
+
+            # Sheets APIのサービスを構築
+            service = build("sheets", "v4", credentials=creds)
+
+            # 更新するデータを準備（2次元配列として）
+            body = {
+                "values": [[value]]  # 単一のセルの値を2次元配列として設定
+            }
+
+            # APIリクエストを実行してセルを更新
+            result = (
+                service.spreadsheets()
+                .values()
+                .update(
+                    spreadsheetId=spreadsheet_id,
+                    range=range_name,
+                    valueInputOption="USER_ENTERED",
+                    body=body,
+                )
+                .execute()
+            )
+
+            print(f"セル {range_name} を更新しました。")
+            return result
+
+        except HttpError as error:
+            print(f"試行 {attempt + 1}/{max_retries} でエラーが発生しました: {error}")
+            if attempt < max_retries - 1:
+                print("60秒後にリトライします...")
+                time.sleep(60)
+            else:
+                print("最大リトライ回数に達しました。")
+                return None
+
+
 def insert_to_spreadsheet(spreadsheet_id, range_name, values, max_retries=3):
     """
     スプレッドシートにデータを挿入する関数

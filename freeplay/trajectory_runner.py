@@ -21,7 +21,11 @@ from eval.open.db_client import DBClient, SQLliteDBClient
 import os
 import json
 from typing import List
-from spreadsheet import insert_to_spreadsheet, get_spreadsheet_values
+from spreadsheet import (
+    insert_to_spreadsheet,
+    get_spreadsheet_values,
+    update_spreadsheet_cell,
+)
 from models.game_state import GameState
 
 load_dotenv()
@@ -193,7 +197,11 @@ class TrajectoryRunner:
                 current_conversation=current_conversation,
             )
 
-            print("Waiting for instruction...")
+            update_spreadsheet_cell(
+                os.getenv("SPREADSHEET_ID"),
+                "System!B1",
+                f"[Iteration {iteration}] 指示の入力を待っています...",
+            )
 
             # 1分ごとにスプレッドシートにアクセスし、指示が更新されているかを確認
             instruction = ""
@@ -214,6 +222,12 @@ class TrajectoryRunner:
                 iteration=iteration,
                 instruction=instruction,
                 previous_iteration_summary=previous_iteration_summary,
+            )
+
+            update_spreadsheet_cell(
+                os.getenv("SPREADSHEET_ID"),
+                "System!B1",
+                f"[Iteration {iteration}] LLM実行中...",
             )
 
             # Save results to spreadsheet
