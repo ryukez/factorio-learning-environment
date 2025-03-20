@@ -47,7 +47,7 @@ def format_inventory(inventory: dict) -> str:
     slot = 0
     for item, count in inventory.items():
         slot += (count - 1) // 50 + 1
-    return f"{inventory}, {80 - slot} slots remaining"
+    return f"{inventory}, {max(80 - slot, 0)} slots remaining"
 
 
 class TrajectoryRunner:
