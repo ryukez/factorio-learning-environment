@@ -126,6 +126,14 @@ class ConversationFormatter(ConversationFormatter):
 ## Your Inventory
 {current_inventory}
 
+## Important Notes
+- Always inspect game state before making changes
+- Consider long-term implications of actions
+- Maintain working systems, and clear entities that aren't working or don't have a clear purpose
+- Build incrementally and verify each step
+- DON'T REPEAT YOUR PREVIOUS STEPS - just continue from where you left off. Take into account what was the last action that was executed and continue from there. If there was a error previously, do not repeat your last lines - as this will alter the game state unnecessarily.
+- Always keep at least free 20 slots in your inventory, otherwise you will not be able to pick up or craft new items.
+
 Remember that your python code must be always enclosed with ```python ... ``` decorator. It's very import for parsing your code. It you can't, you will be fired.
 
 Your output

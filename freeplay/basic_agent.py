@@ -144,18 +144,6 @@ sorted_furnaces = sorted(
     key=lambda e: (e.position.x, e.position.y)
 )
 ```
-
-## Important Notes
-- Use transport belts to keep burners fed with coal
-- Always inspect game state before making changes
-- Consider long-term implications of actions
-- Maintain working systems, and clear entities that aren't working or don't have a clear purpose
-- Build incrementally and verify each step
-- DON'T REPEAT YOUR PREVIOUS STEPS - just continue from where you left off. Take into account what was the last action that was executed and continue from there. If there was a error previously, do not repeat your last lines - as this will alter the game state unnecessarily.
-- Do not encapsulate your code in a function _unless_ you are writing a utility for future use - just write it as if you were typing directly into the Python interpreter.
-- Your inventory has space for ~2000 items. If it fills up, insert the items into a chest.
-- Ensure that your factory is arranged in a grid, as this will make things easier.
-- Try to assign a specific and clear role to each entity, and ensure that it is working as expected. Check if similar entities are already present on the map. If exists, try to reuse them or fix the issues with them.
 """
 
 
