@@ -43,6 +43,13 @@ class PlayConfig:
     version_description: str
 
 
+def format_inventory(inventory: dict) -> str:
+    slot = 0
+    for item, count in inventory.items():
+        slot += (count - 1) // 50 + 1
+    return f"{inventory}, {80 - slot} slots remaining"
+
+
 class TrajectoryRunner:
     """Handles program generation and evaluation for a single trajectory"""
 
@@ -185,7 +192,7 @@ class TrajectoryRunner:
         iteration = (depth // STEPS_PER_ITERATION) + 1
 
         current_entities = f"{instance.namespace.get_entities()}"
-        current_inventory = f"{instance.namespace.inspect_inventory()}"
+        current_inventory = format_inventory(instance.namespace.inspect_inventory())
 
         (previous_iteration_summary,) = await self.agent.report_summary(
             iteration=iteration,
@@ -232,7 +239,7 @@ class TrajectoryRunner:
             )
 
             current_entities = f"{instance.namespace.get_entities()}"
-            current_inventory = f"{instance.namespace.inspect_inventory()}"
+            current_inventory = format_inventory(instance.namespace.inspect_inventory())
 
             # Save results to spreadsheet
             (_, iteration_row_number) = insert_to_spreadsheet(
@@ -254,7 +261,9 @@ class TrajectoryRunner:
                 time.sleep(COURTESY_SLEEP)  # courtesy sleep
                 try:
                     current_entities = f"{instance.namespace.get_entities()}"
-                    current_inventory = f"{instance.namespace.inspect_inventory()}"
+                    current_inventory = format_inventory(
+                        instance.namespace.inspect_inventory()
+                    )
 
                     print("generation starting...")
                     program = await self._generate_program(
@@ -367,7 +376,7 @@ class TrajectoryRunner:
                     continue
 
             current_entities = f"{instance.namespace.get_entities()}"
-            current_inventory = f"{instance.namespace.inspect_inventory()}"
+            current_inventory = format_inventory(instance.namespace.inspect_inventory())
 
             (previous_iteration_summary,) = await self.agent.report_summary(
                 iteration=iteration,
