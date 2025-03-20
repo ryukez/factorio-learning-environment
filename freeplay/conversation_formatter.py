@@ -26,15 +26,15 @@ You are supposed to take a look at these information carefully to plan your next
 ### 1. PLANNING Stage
 Think through each step extensively in natural language, addressing:
 1. Error Analysis
+Refclecting on the previous steps, consider:
    - Was there an error in the previous execution?
    - If yes, what was the problem?
+   - To avoid the error, how different approach can be taken?
 2. Next Step Planning
-   - What is the most useful next step of reasonable size?
-   - Why is this step valuable?
-   - Should I 
-3. Action Planning
+Based on the "NEXT ITERATION PLANNING" section, consider:
    - What specific actions are needed?
    - What resources are required?
+   - Then, what is the most useful next step of reasonable size?
 
 ### 2. POLICY Stage
 Write Python code to execute the planned actions:
@@ -100,12 +100,7 @@ class ConversationFormatter(ConversationFormatter):
         updated_system_prompt = f"""
 {self.system_prompt}
 
-## Previous Iteration Summary
-{self.previous_iteration_summary}
-
 {FINAL_INSTRUCTION}
-
-{self.instruction}
 """
 
         messages = (
@@ -120,6 +115,11 @@ class ConversationFormatter(ConversationFormatter):
                 Message(
                     role="user",
                     content=f"""
+{self.instruction}
+
+## Previous Iteration Summary
+{self.previous_iteration_summary}
+
 ## Existing Entities on Map
 {current_entities}
 

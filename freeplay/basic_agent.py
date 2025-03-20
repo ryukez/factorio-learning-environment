@@ -200,8 +200,8 @@ Build a power plant, consisting of a offshore pomp, boiler, and steam engine.
 [Hints From Supervisor]
 - You need to prepare enough iron and copper plates first to craft facilities
 
-Based on the inventory state and execution logs, you must generate a report of the previous iteration.
-The report must have 3 sections: CHANGES, TASK COMPLETION ANALYSIS and ERROR TIPS. Below are instructions for both of them:
+Based on the entities on the map, inventory state and execution logs, you must generate a report of the previous iteration.
+The report must have 3 sections: CHANGES, NEXT ITERATION PLANING and ERROR TIPS. Below are instructions for both of them:
 
 CHANGES
 Describe what is done duration the iteration.
@@ -215,27 +215,25 @@ In the previous iteration,
 - now we have boiler and steam engine in the inventory, so we can place them in the neighbor of existing offshore pomp at position(x5) to build power plant!
 - The burner drill at position(x6) was not working due to insufficient fuel. I fixed the issue by feeding some coals. Because we have no automated coal supplies, I should feed them manually for a while when it is out of fuel.
 
-TASK COMPLETION ANALYSIS
-Analyze how is the task is going, given existing entities, inventory state and execution logs.
-If the given task is completed, you should summarize:
-- the entities related to the task, its status and positions
-- notes useful for the following actions
+NEXT ITERATION PLANING
+Analyze how is the task is going and plan the next iteration (consists of 20 steps).
+If the given task is completed, you can just summarize the completion.
 
-If the task is not completed yet, you should summarize:
-- the remaining steps planned 
-- difficulties or obstacles you are facing
+If the task is not completed yet, you should first difficulties or obstacles you are facing.
+Then you should plan the next iteration to complete the task.
+- What are the remaining steps to complete the task
 - required items to complete the task
 
 Example:
-We have not yet built complete the task of building power plant.
-As the remaining steps, we need:
-- Get enough amount of iron and copper plates to craft offshore pomp, boiler and steam engine. We need more 30 iron plates and 3 copper plates.
-- Craft the entities
-- Connect them with pipes
+We have not yet built achive the objective of building power plant.
 
-To get iron and copper plates, we can't craft them and need to smelt ores through furnaces.
-I have already built stone furnace for iron plates, but one for copper plates are not yet prepared.
-Next we need to build a stone furnace for copper ones. At the same time, coals and ores should be fed into the stone furnace of iron plates to get iron plates constantly.
+Difficulties and Obstacles:
+- We are facing difficulties in extracting resources from chests and furnaces. This is because my inventory is full. I need to clear some space in my inventory to extract more items, by either crafting them into higher level items or storing them in chests.
+- We need to ensure a consistent supply of coal to the furnaces to keep them operational.
+
+To complete the task, we need to:
+- 1. Get enough amount of iron and copper plates to craft offshore pomp, boiler and steam engine. We need more 30 iron plates and 3 copper plates.
+- 2. Craft the entities and onnect them with pipes
 
 ERROR TIPS
 In this section you must analyse the errors that the agent has made and bring out tips how to mitigate these errors. 
@@ -257,10 +255,10 @@ You must output only the report. Any other texts are forbidden.
 ## Instruction
 {instruction}
 
-## Entities
+## Entities on the map
 {entities}
 
-## Inventory
+## Your Inventory
 {inventory}
 
 ## Execution Logs
