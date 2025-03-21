@@ -13,13 +13,8 @@ import copy
 from namespace import FactorioNamespace
 
 FINAL_INSTRUCTION = """"
-## Step Input
-You are given updated state of existing entities on map and your inventory at each step.
-You are supposed to take a look at these information carefully to plan your next step.
-
-- You can place nothing but entities in your current inventory. If you don't have any entities in your inventory, you need to get them first by crafting, harvesting or smelting etc.
-- Try to understand the role of each exsting entities on map. For example, one stone furnace might be used to smelt iron ore into iron plates, while another one might be used to smelt copper ore into copper plates, or to smelt iron plates into steel plates.
-- In opposite, not-working entities have no use in the game. If you need to place some entities, you should first consider replacing existing ones. Example abundoned pipes or belts, not-working inserters, or empty chests.
+Based on the given medium-term strategy, your task is to generate policy code executing actual actions.
+Given the execution logs as conversation, existing entities, inventory content and the current plan, decide on the next steps and write Python code to execute them.
 
 ## Response Format
 
@@ -46,7 +41,6 @@ your_code_here
 Your output should be in the following format:
 [Planning]
 your_planning_here
-
 [Policy]
 ```python
 your_code_here
@@ -79,6 +73,7 @@ class ConversationFormatter(ConversationFormatter):
         namespace: FactorioNamespace,
         current_entities: str,
         current_inventory: str,
+        plan: str,
     ) -> Conversation:
         """
         conversations:
@@ -100,11 +95,6 @@ class ConversationFormatter(ConversationFormatter):
         updated_system_prompt = f"""
 {self.system_prompt}
 
-## Previous Iteration Summary
-{self.previous_iteration_summary}
-
-{FINAL_INSTRUCTION}
-
 {self.instruction}
 """
 
@@ -120,16 +110,23 @@ class ConversationFormatter(ConversationFormatter):
                 Message(
                     role="user",
                     content=f"""
-## Existing Entities on Map
+{FINAL_INSTRUCTION}
+
+## Learnings from Previous Iteration
+{self.previous_iteration_summary}
+
+## Medium-Term Strategy
+{plan}
+
+## Entities on the Map
 {current_entities}
 
 ## Your Inventory
 {current_inventory}
 
-Remember that your python code must be always enclosed with ```python ... ``` decorator. It's very import for parsing your code. It you can't, you will be fired.
-
-Your output
-[Planning]""",
+Your Output:
+[Planning]
+""",
                 ),
             ]
         )

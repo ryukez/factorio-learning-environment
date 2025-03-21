@@ -188,7 +188,7 @@ class TrajectoryRunner:
 
         last_response = None
         # Run trajectory
-        STEPS_PER_ITERATION = 50
+        STEPS_PER_ITERATION = 30
         iteration = (depth // STEPS_PER_ITERATION) + 1
 
         current_entities = f"{instance.namespace.get_entities()}"
@@ -370,6 +370,9 @@ class TrajectoryRunner:
                     if program.state:
                         current_state = program.state
                         current_conversation = program.conversation
+
+                    with open("messages.json", "w") as f:
+                        json.dump(current_conversation.messages, f, indent=2)
 
                 except Exception as e:
                     print(f"Error in Step {iteration}-{step + 1}: {e}")
