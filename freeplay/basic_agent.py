@@ -398,6 +398,7 @@ class BasicAgent(AgentABC):
             model=self.generation_params.model,
         )
         entity_summary = entity_summary_response.choices[0].message.content
+        print(entity_summary)
 
         # We format the conversation every N steps to add a context summary to the system prompt
         formatted_conversation = await self.formatter.format_conversation(
