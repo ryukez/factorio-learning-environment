@@ -223,7 +223,7 @@ class FluidConnectionResolver(Resolver):
                 target_positions = [IndexedPosition(x=pos.x, y=pos.y, type="") for pos in target.connection_points]
             # boiler can also receive steam because you can do engine-to-boiler connections
             case Boiler():
-                target_steam_positions = [IndexedPosition(x=target.steam_output_point.x, y=target.steam_output_point.y, type="steam")]
+                target_steam_positions = [IndexedPosition(x=target.steam_output_point.x, y=target.steam_output_point.y, type="steam")] if target.steam_output_point else []
                 target_water_positions = [IndexedPosition(x=pos.x, y=pos.y, type="water") for pos in target.connection_points]
                 target_positions = target_steam_positions + target_water_positions
             case Generator():
