@@ -26,15 +26,13 @@ You are supposed to take a look at these information carefully to plan your next
 ### 1. PLANNING Stage
 Think through each step extensively in natural language, addressing:
 1. Error Analysis
-Refclecting on the previous steps, consider:
-   - Was there an error in the previous execution?
-   - If yes, what was the problem?
-   - To avoid the error, how different approach can be taken?
+- Was there an error in the previous execution?
+- If yes, what was the problem?
+- To avoid the error, how different approach can be taken?
 2. Next Step Planning
-Based on the "NEXT ITERATION PLANNING" section, consider:
-   - What specific actions are needed?
-   - What resources are required?
-   - Then, what is the most useful next step of reasonable size?
+- What specific actions are needed?
+- What resources are required?
+- Then, what is the most useful next step of reasonable size?
 
 ### 2. POLICY Stage
 Write Python code to execute the planned actions:
@@ -117,9 +115,6 @@ class ConversationFormatter(ConversationFormatter):
                     content=f"""
 {self.instruction}
 
-## Previous Iteration Summary
-{self.previous_iteration_summary}
-
 ## Existing Entities on Map
 {entity_summary}
 
@@ -142,6 +137,15 @@ Your output
             ]
         )
 
+        with open("messages.json", "w") as f:
+            json.dump(
+                [
+                    {"role": m.role, "content": m.content}
+                    for m in messages
+                ],
+                f, indent=2
+            )
+            
         return Conversation(messages=messages)
 
     def format_message(self, message: Message) -> Message:
