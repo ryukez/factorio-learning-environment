@@ -10,7 +10,7 @@ from entities import Entity, EntityGroup
 from instance import FactorioInstance
 from utils.profits import get_achievements
 from models.conversation import Conversation
-from definitions import Evaluation
+from definitions import Evaluation, ParsedGameState
 
 
 class SimpleFactorioEvaluator:
@@ -49,8 +49,15 @@ class SimpleFactorioEvaluator:
             # relative_reward = raw_reward  # - holdout_value
 
             return Evaluation(
-                game_state=state,
+                game_state=ParsedGameState(
+                    raw=state,
+                    entities=f"{entities}",
+                ),
                 response=response,
+                reward=raw_reward,
+                achievements=achievements,
+                flows=flows,
+                ticks=ticks,
             )
 
         except Exception as e:
@@ -85,7 +92,6 @@ class SimpleFactorioEvaluator:
             initial_value, start_time = instance.namespace.score()
             reward, time, result = instance.eval(code, timeout=60)
 
-            entities = instance.namespace.get_entities()
             # final_inventory = instance.namespace.inspect_inventory()
 
             # # Check to see if the inventories are different
@@ -129,6 +135,7 @@ class SimpleFactorioEvaluator:
             # Sleep for 3 seconds to get output flows
             await asyncio.sleep(self.value_accrual_time)
             state = GameState.from_instance(instance)
+            entities = instance.namespace.get_entities()
 
             score, _ = instance.namespace.score()
             final_reward = score - initial_value
