@@ -124,3 +124,49 @@ class Agent(ABC):
         execution_history: List[Execution],
     ) -> AgentOutput:
         pass
+
+
+@dataclass
+class DataPoint:
+    collection_id: str
+
+    game_state: ParsedGameState
+    step: Step
+    execution_history: List[Execution]
+
+    agent_name: str
+    agent_version: str
+
+    agent_output: AgentOutput
+    evaluation: Evaluation
+
+    def to_json(self):
+        return {
+            "collection_id": self.collection_id,
+            "game_state": self.game_state.to_json(),
+            "step": self.step.to_json(),
+            "execution_history": [e.to_json_partial() for e in self.execution_history],
+            "agent_name": self.agent_name,
+            "agent_version": self.agent_version,
+            "agent_output": self.agent_output.to_json(),
+            "evaluation": self.evaluation.to_json_partial(),
+        }
+
+
+def create_data_point(
+    collection_id: str,
+    agent_name: str,
+    agent_version: str,
+    execution: Execution,
+    execution_history: List[Execution],
+) -> DataPoint:
+    return DataPoint(
+        collection_id=collection_id,
+        game_state=execution.game_state,
+        step=execution.step,
+        execution_history=execution_history,
+        agent_name="BasicAgent",
+        agent_version="1",
+        agent_output=execution.agent_output,
+        evaluation=execution.evaluation,
+    )

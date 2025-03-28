@@ -206,6 +206,95 @@ your_code_here
 """
 
 
+def iteration_summary_prompt(
+    instruction: str, entities: str, inventory: str, logs: str
+):
+    return f"""
+You are an AI agent designed to play Factorio, specializing in:
+- Long-horizon planning
+- Spatial reasoning 
+- Systematic automation
+
+## Instruction
+You are given current existing entities, inventory state and logs you have executed in the game, during the previous interation.
+You have the following instruction from supervisor:
+
+[Task]
+Build a power plant, consisting of a offshore pomp, boiler, and steam engine.
+
+[Hints From Supervisor]
+- You need to prepare enough iron and copper plates first to craft facilities
+
+Based on the inventory state and execution logs, you must generate a report of the previous iteration.
+The report must have 3 sections: CHANGES, TASK COMPLETION ANALYSIS and ERROR TIPS. Below are instructions for both of them:
+
+CHANGES
+Describe what is done duration the iteration.
+- Newly built facilities with position
+- Obtained items
+- Working status changes of facilities
+
+Example:
+In the previous iteration, 
+- we built burner mining drill at position(x1). It is supplying iron ores to stone furnace nearby at position(x2). There iron ores are smelted into iron plates, and stored into a wooden chest at position(x3) by a burner inserter at position(x4).
+- now we have boiler and steam engine in the inventory, so we can place them in the neighbor of existing offshore pomp at position(x5) to build power plant!
+- The burner drill at position(x6) was not working due to insufficient fuel. I fixed the issue by feeding some coals. Because we have no automated coal supplies, I should feed them manually for a while when it is out of fuel.
+
+TASK COMPLETION ANALYSIS
+Analyze how is the task is going, given existing entities, inventory state and execution logs.
+If the given task is completed, you should summarize:
+- the entities related to the task, its status and positions
+- notes useful for the following actions
+
+If the task is not completed yet, you should summarize:
+- the remaining steps planned 
+- difficulties or obstacles you are facing
+- required items to complete the task
+
+Example:
+We have not yet built complete the task of building power plant.
+As the remaining steps, we need:
+- Get enough amount of iron and copper plates to craft offshore pomp, boiler and steam engine. We need more 30 iron plates and 3 copper plates.
+- Craft the entities
+- Connect them with pipes
+
+To get iron and copper plates, we can't craft them and need to smelt ores through furnaces.
+I have already built stone furnace for iron plates, but one for copper plates are not yet prepared.
+Next we need to build a stone furnace for copper ones. At the same time, coals and ores should be fed into the stone furnace of iron plates to get iron plates constantly.
+
+ERROR TIPS
+In this section you must analyse the errors that the agent has made and bring out tips how to mitigate these errors. 
+Usually error messages tell you what the agent did wrong. The errors can be incorrect use of API, misplaced objects etc. 
+Make this a succinct detailed list, group common similar error patterns and solutions how to avoid these errors. 
+Group similar mistakes, if the agent made the same mistake multiple times but at many places, bring it out as one section/bulletpoint. 
+Include new mistakes and all mistake tips from the previous report
+
+Make the sections accurate and thorough. Do not mention things like "The error message suggests" etc, this is self evident.
+Some examples
+
+### Errors when using extracting but being too far
+ -  Make sure to move to the target entity where you want to extract from before extracting items
+### Errors when placing into a tile which is occupied by another entity
+- Ensure you can place a entity to a tile before attempting placing
+
+You must output only the report. Any other texts are forbidden.
+
+## Instruction
+{instruction}
+
+## Entities
+{entities}
+
+## Inventory
+{inventory}
+
+## Execution Logs
+{logs}
+
+## Output
+"""
+
+
 def my_before_sleep(retry_state):
     if retry_state.attempt_number < 1:
         loglevel = logging.INFO
@@ -221,7 +310,7 @@ def my_before_sleep(retry_state):
 
 
 class BasicAgent(Agent):
-    def __init__(self, model, system_prompt):
+    def __init__(self, model: str, system_prompt: str):
         goal_description = "\n\n### Your Final Goal\n- Build the biggest possible factory\n- Maximise automation, efficiency and scale\n\n"
         instructions = GENERAL_INSTRUCTIONS + system_prompt + goal_description
         self.system_prompt = instructions
@@ -244,6 +333,20 @@ class BasicAgent(Agent):
         game_state: ParsedGameState,
         execution_history: List[Execution],
     ) -> List[Message]:
+        iteration_messages: List[Message] = []
+        for execution in execution_history:
+            if execution.step.iteration_number == step.iteration_number:
+                iteration_messages += [
+                    Message(
+                        role="assistant",
+                        content=execution.agent_output.code,
+                    ),
+                    Message(
+                        role="user",
+                        content=execution.evaluation.response,
+                    ),
+                ]
+
         updated_system_prompt = f"""
 {self.system_prompt}
 
@@ -259,7 +362,7 @@ class BasicAgent(Agent):
                     content=updated_system_prompt,
                 )
             ]
-            # + iteration_messages
+            + iteration_messages
             + [
                 Message(
                     role="user",
@@ -304,4 +407,63 @@ Your output
             raw_response=policy.meta.text_response,
             thinking=policy.thinking,
             code=policy.code,
+        )
+
+    async def report_summary(
+        self,
+        iteration: int,
+        current_inventory: str,
+        current_entities: str,
+        current_conversation: Conversation,
+    ):
+        # entity_summary_response = await self.llm_factory.acall(
+        #     messages=[
+        #         {
+        #             "role": "user",
+        #             "content": entity_summary_prompt(entities),
+        #         }
+        #     ],
+        #     n_samples=1,  # We only need one program per iteration
+        #     temperature=self.generation_params.temperature,
+        #     max_tokens=16384,  # use longer max_tokens
+        #     model=self.generation_params.model,
+        # )
+        # entity_summary = entity_summary_response.choices[0].message.content
+
+        instruction = ""
+        iteration_messages = []
+        for message in current_conversation.messages:
+            if message.metadata.get("iteration") == iteration:
+                iteration_messages.append(message)
+                instruction = message.metadata.get("instruction")
+
+        iteration_summary = ""
+        if iteration_messages:
+            iteration_summary_response = await self.llm_factory.acall(
+                messages=[
+                    {
+                        "role": "user",
+                        "content": iteration_summary_prompt(
+                            instruction,
+                            current_entities,
+                            current_inventory,
+                            "\n".join(
+                                [
+                                    f"role: {m.role}\ncontent: {m.content}\n"
+                                    for m in iteration_messages
+                                ]
+                            ),
+                        ),
+                    }
+                ],
+                n_samples=1,  # We only need one program per iteration
+                temperature=self.generation_params.temperature,
+                max_tokens=2048,  # use longer max_tokens
+                model=self.generation_params.model,
+            )
+            iteration_summary = iteration_summary_response.choices[0].message.content
+
+        return (
+            # entity_summary,
+            f"{iteration_summary}",
         )
