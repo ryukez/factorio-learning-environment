@@ -55,7 +55,8 @@ class MoveTo(Tool):
             else:
                 response, execution_time = self.execute(PLAYER, path_handle, NONE, NONE)
 
-            print(response)
+            if isinstance(response, str):
+                raise Exception(f"Could not move. The destination is too far or unreachable. Try to move to a closer position.")
 
             if isinstance(response, int) and response == 0:
                 raise Exception("Could not move.")

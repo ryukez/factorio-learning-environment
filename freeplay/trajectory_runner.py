@@ -30,6 +30,7 @@ from spreadsheet import (
     update_spreadsheet_cell,
 )
 from models.game_state import GameState
+from agents import Policy
 
 load_dotenv()
 
@@ -77,16 +78,11 @@ class TrajectoryRunner:
         game_state: ParsedGameState,
         execution_history: List[Execution],
     ) -> AgentOutput:
-        try:
-            return await self.agent.run(
-                step=step,
-                game_state=game_state,
-                execution_history=execution_history,
-            )
-
-        except Exception as e:
-            print(f"Program generation failed: {str(e)}")
-            return []
+        return await self.agent.run(
+            step=step,
+            game_state=game_state,
+            execution_history=execution_history,
+        )
 
     async def run(self):
         """Run a single trajectory"""
@@ -113,6 +109,13 @@ class TrajectoryRunner:
             if game_state:
                 instance = self.evaluator.instance
                 instance.reset(game_state.raw)
+
+        # offshore_pump = instance.namespace.get_entity(Prototype.OffshorePump, Position(x=-7.5, y=-27.5))
+        # boiler = instance.namespace.get_entity(Prototype.Boiler, Position(x=-6.5, y=-24.0))
+
+        # print(instance.namespace.connect_entities(offshore_pump, boiler, Prototype.Pipe))
+        # print("lab" in instance.namespace.inspect_inventory().keys())
+        # os.exit(1)
 
         # New game
         if not game_state:
@@ -159,6 +162,9 @@ class TrajectoryRunner:
                 try:
                     user_input = get_spreadsheet_values(
                         os.getenv("SPREADSHEET_ID"), "Input!E2:E3"
+                    )
+                    print(
+                        f"User input: {user_input}, iteration: {step.iteration_number}"
                     )
                     if user_input and int(user_input[0][0]) == step.iteration_number:
                         instruction = user_input[1][0]
@@ -329,7 +335,7 @@ def create_factorio_instance(instance_id: int) -> FactorioInstance:
     if instance_id > 0:
         raise ValueError("Only one instance is supported")
 
-    ips = ["192.168.0.108"]
+    ips = ["localhost"]
     tcp_ports = [27000]
 
     instance = FactorioInstance(

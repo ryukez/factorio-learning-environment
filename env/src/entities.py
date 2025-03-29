@@ -722,7 +722,7 @@ class Lab(Entity, Electric):
         research_string = ""
         if self.research and self.research in technology_by_name:
             research_string=f"research={self.research}, "
-        return f"\n\tLab(lab_input={self.lab_input}, status={self.status}, {research_string}electrical_id={self.electrical_id})"
+        return f"\n\tLab(position=Position({self.position}), lab_input={self.lab_input}, status={self.status}, {research_string}electrical_id={self.electrical_id}, warnings={self.warnings})"
 
 class Pipe(Entity):
     """A pipe for fluid transport"""

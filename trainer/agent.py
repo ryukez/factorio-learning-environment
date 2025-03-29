@@ -140,22 +140,9 @@ sorted_furnaces = sorted(
     key=lambda e: (e.position.x, e.position.y)
 )
 ```
-
-## Important Notes
-- Use transport belts to keep burners fed with coal
-- Always inspect game state before making changes
-- Consider long-term implications of actions
-- Maintain working systems, and clear entities that aren't working or don't have a clear purpose
-- Build incrementally and verify each step
-- DON'T REPEAT YOUR PREVIOUS STEPS - just continue from where you left off. Take into account what was the last action that was executed and continue from there. If there was a error previously, do not repeat your last lines - as this will alter the game state unnecessarily.
-- Do not encapsulate your code in a function _unless_ you are writing a utility for future use - just write it as if you were typing directly into the Python interpreter.
-- Your inventory has space for ~2000 items. If it fills up, insert the items into a chest.
-- Ensure that your factory is arranged in a grid, as this will make things easier.
-- Try to assign a specific and clear role to each entity, and ensure that it is working as expected. Check if similar entities are already present on the map. If exists, try to reuse them or fix the issues with them.
 """
 
 FINAL_INSTRUCTION = """"
-## Step Input
 You are given updated state of existing entities on map and your inventory at each step.
 You are supposed to take a look at these information carefully to plan your next step.
 
@@ -168,15 +155,13 @@ You are supposed to take a look at these information carefully to plan your next
 ### 1. PLANNING Stage
 Think through each step extensively in natural language, addressing:
 1. Error Analysis
-   - Was there an error in the previous execution?
-   - If yes, what was the problem?
+- Was there an error in the previous execution?
+- If yes, what was the problem?
+- To avoid the error, how different approach can be taken?
 2. Next Step Planning
-   - What is the most useful next step of reasonable size?
-   - Why is this step valuable?
-   - Should I 
-3. Action Planning
-   - What specific actions are needed?
-   - What resources are required?
+- What specific actions are needed?
+- What resources are required?
+- Then, what is the most useful next step of reasonable size?
 
 ### 2. POLICY Stage
 Write Python code to execute the planned actions:
@@ -215,8 +200,8 @@ Build a power plant, consisting of a offshore pomp, boiler, and steam engine.
 [Hints From Supervisor]
 - You need to prepare enough iron and copper plates first to craft facilities
 
-Based on the inventory state and execution logs, you must generate a report of the previous iteration.
-The report must have 3 sections: CHANGES, TASK COMPLETION ANALYSIS and ERROR TIPS. Below are instructions for both of them:
+Based on the entities on the map, inventory state and execution logs, you must generate a report of the previous iteration.
+The report must have 3 sections: CHANGES, NEXT ITERATION PLANING and ERROR TIPS. Below are instructions for both of them:
 
 CHANGES
 Describe what is done duration the iteration.
@@ -230,27 +215,25 @@ In the previous iteration,
 - now we have boiler and steam engine in the inventory, so we can place them in the neighbor of existing offshore pomp at position(x5) to build power plant!
 - The burner drill at position(x6) was not working due to insufficient fuel. I fixed the issue by feeding some coals. Because we have no automated coal supplies, I should feed them manually for a while when it is out of fuel.
 
-TASK COMPLETION ANALYSIS
-Analyze how is the task is going, given existing entities, inventory state and execution logs.
-If the given task is completed, you should summarize:
-- the entities related to the task, its status and positions
-- notes useful for the following actions
+NEXT ITERATION PLANING
+Analyze how is the task is going and plan the next iteration (consists of 20 steps).
+If the given task is completed, you can just summarize the completion.
 
-If the task is not completed yet, you should summarize:
-- the remaining steps planned 
-- difficulties or obstacles you are facing
+If the task is not completed yet, you should first difficulties or obstacles you are facing.
+Then you should plan the next iteration to complete the task.
+- What are the remaining steps to complete the task
 - required items to complete the task
 
 Example:
-We have not yet built complete the task of building power plant.
-As the remaining steps, we need:
-- Get enough amount of iron and copper plates to craft offshore pomp, boiler and steam engine. We need more 30 iron plates and 3 copper plates.
-- Craft the entities
-- Connect them with pipes
+We have not yet built achive the objective of building power plant.
 
-To get iron and copper plates, we can't craft them and need to smelt ores through furnaces.
-I have already built stone furnace for iron plates, but one for copper plates are not yet prepared.
-Next we need to build a stone furnace for copper ones. At the same time, coals and ores should be fed into the stone furnace of iron plates to get iron plates constantly.
+Difficulties and Obstacles:
+- We are facing difficulties in extracting resources from chests and furnaces. This is because my inventory is full. I need to clear some space in my inventory to extract more items, by either crafting them into higher level items or storing them in chests.
+- We need to ensure a consistent supply of coal to the furnaces to keep them operational.
+
+To complete the task, we need to:
+- 1. Get enough amount of iron and copper plates to craft offshore pomp, boiler and steam engine. We need more 30 iron plates and 3 copper plates.
+- 2. Craft the entities and onnect them with pipes
 
 ERROR TIPS
 In this section you must analyse the errors that the agent has made and bring out tips how to mitigate these errors. 
@@ -272,10 +255,10 @@ You must output only the report. Any other texts are forbidden.
 ## Instruction
 {instruction}
 
-## Entities
+## Entities on the map
 {entities}
 
-## Inventory
+## Your Inventory
 {inventory}
 
 ## Execution Logs
@@ -307,7 +290,7 @@ class IterationAgent(Agent):
 
         self.model = model
         self.llm_factory = LLMFactory(model)
-        self.generation_params = GenerationParameters(n=1, max_tokens=2048, model=model)
+        self.generation_params = GenerationParameters(n=1, max_tokens=8192, model=model)
 
     def name(self) -> str:
         return f"IterationAgent-{self.model}"
@@ -362,10 +345,26 @@ class IterationAgent(Agent):
                     role="user",
                     content=f"""
 ## Existing Entities on Map
+Here is a list of existing entities on the map.
+If there are issues with existing entities, you should try to fix them, by supplying missing resources, repairing broken connections, or removing unnecessary entities.
+Note that you don't need to care about "Chest is full". Chests are entities to store items, and they can be full.
+You should consider making use of items in the inventories of entities, before crafting or harvesting new items.
+
 {game_state.entities}
 
 ## Your Inventory
+Here is a list of entities in your inventory.
+Note that  you can only place entities that are in your inventory. If you don't have any entities in your inventory, you need to get them first by crafting, harvesting or smelting etc.
+Make sure to keep at least free 20 slots in your inventory, otherwise you will not be able to pick up or craft new items.
+
 {game_state.inventory()}
+
+## Important Notes
+- Always inspect game state before making changes
+- Consider long-term implications of actions
+- Maintain working systems, and clear entities that aren't working or don't have a clear purpose
+- Build incrementally and verify each step
+- DON'T REPEAT YOUR PREVIOUS STEPS - just continue from where you left off. Take into account what was the last action that was executed and continue from there. If there was a error previously, do not repeat your last lines - as this will alter the game state unnecessarily.
 
 Remember that your python code must be always enclosed with ```python ... ``` decorator. It's very import for parsing your code. It you can't, you will be fired.
 
@@ -410,20 +409,6 @@ Your output
         current_entities: str,
         current_conversation: Conversation,
     ):
-        # entity_summary_response = await self.llm_factory.acall(
-        #     messages=[
-        #         {
-        #             "role": "user",
-        #             "content": entity_summary_prompt(entities),
-        #         }
-        #     ],
-        #     n_samples=1,  # We only need one program per iteration
-        #     temperature=self.generation_params.temperature,
-        #     max_tokens=16384,  # use longer max_tokens
-        #     model=self.generation_params.model,
-        # )
-        # entity_summary = entity_summary_response.choices[0].message.content
-
         instruction = ""
         iteration_messages = []
         for message in current_conversation.messages:
@@ -433,29 +418,35 @@ Your output
 
         iteration_summary = ""
         if iteration_messages:
-            iteration_summary_response = await self.llm_factory.acall(
-                messages=[
-                    {
-                        "role": "user",
-                        "content": iteration_summary_prompt(
-                            instruction,
-                            current_entities,
-                            current_inventory,
-                            "\n".join(
-                                [
-                                    f"role: {m.role}\ncontent: {m.content}\n"
-                                    for m in iteration_messages
-                                ]
+            try:
+                iteration_summary_response = await self.llm_factory.acall(
+                    messages=[
+                        {
+                            "role": "user",
+                            "content": iteration_summary_prompt(
+                                instruction,
+                                current_entities,
+                                current_inventory,
+                                "\n".join(
+                                    [
+                                        f"role: {m.role}\ncontent: {m.content}\n"
+                                        for m in iteration_messages
+                                    ]
+                                ),
                             ),
-                        ),
-                    }
-                ],
-                n_samples=1,  # We only need one program per iteration
-                temperature=self.generation_params.temperature,
-                max_tokens=2048,  # use longer max_tokens
-                model=self.generation_params.model,
-            )
-            iteration_summary = iteration_summary_response.choices[0].message.content
+                        }
+                    ],
+                    n_samples=1,  # We only need one program per iteration
+                    temperature=self.generation_params.temperature,
+                    max_tokens=2048,  # use longer max_tokens
+                    model=self.generation_params.model,
+                )
+                iteration_summary = iteration_summary_response.choices[
+                    0
+                ].message.content
+            except Exception as e:
+                logging.error(f"Failed to generate iteration summary: {e}")
+                iteration_summary = ""
 
         return (
             # entity_summary,
