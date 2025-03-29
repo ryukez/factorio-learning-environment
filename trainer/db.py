@@ -11,7 +11,7 @@ from typing import Optional, List
 from trainer.definitions import ParsedGameState, Execution, Step, Evaluation
 
 
-class SQLliteDBClient2:
+class SQLliteDBClient:
     def __init__(
         self,
         min_connections: int = 5,

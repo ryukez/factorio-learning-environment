@@ -18,10 +18,9 @@ from trainer.definitions import (
     format_inventory,
 )
 from trainer.evaluator import SimpleFactorioEvaluator
-from trainer.db import SQLliteDBClient2
+from trainer.db import SQLliteDBClient
 
 from eval.tasks.task_abc import TaskABC
-from eval.open.db_client import DBClient, SQLliteDBClient
 import os
 import json
 from typing import List
@@ -54,19 +53,15 @@ class TrajectoryRunner:
     def __init__(
         self,
         agent: IterationAgent,
-        db_client: DBClient,
         evaluator: SimpleFactorioEvaluator,
         config: PlayConfig,
-        process_id: int,
     ):
         self.agent = agent
-        self.db = db_client
         self.evaluator = evaluator
         self.config = config
         self.iteration_times = []
-        self.process_id = process_id
 
-        self.db2 = SQLliteDBClient2(
+        self.db = SQLliteDBClient(
             min_connections=2,
             max_connections=5,
             database_file=os.getenv("SQLITE_DB_FILE"),
@@ -102,8 +97,8 @@ class TrajectoryRunner:
 
         print(self.start_time)
 
-        collection_id = f"{self.config.model}-{self.config.version}"
-        agent_name = self.agent.name
+        collection_id = f"{self.config.model}/{self.config.version}"
+        agent_name = self.agent.name()
         runtime_version = self.config.runtime_version
 
         game_state = None
@@ -113,7 +108,7 @@ class TrajectoryRunner:
                 step,
                 game_state,
                 execution_history,
-            ) = await self.db2.get_resume_state(collection_id=collection_id)
+            ) = await self.db.get_resume_state(collection_id=collection_id)
 
             if game_state:
                 instance = self.evaluator.instance
@@ -289,7 +284,7 @@ class TrajectoryRunner:
                             f,
                         )
 
-                    await self.db2.create_data_point(data_point)
+                    await self.db.create_data_point(data_point)
 
                     game_state = evaluated_game_state
                     execution_history.append(copy.deepcopy(execution))
@@ -350,19 +345,8 @@ def create_factorio_instance(instance_id: int) -> FactorioInstance:
     return instance
 
 
-async def create_db_client() -> DBClient:
-    """Create database client with connection pool"""
-    return SQLliteDBClient(
-        max_conversation_length=40,
-        min_connections=2,
-        max_connections=5,
-        database_file=os.getenv("SQLITE_DB_FILE"),
-    )
-
-
 async def run_trajectory(process_id: int, config: PlayConfig):
     """Entry point for running a single trajectory"""
-    db_client = await create_db_client()
     instance = create_factorio_instance(0)
     system_prompt = instance.get_system_prompt()
 
@@ -375,7 +359,7 @@ async def run_trajectory(process_id: int, config: PlayConfig):
     # setup the instance
     task = config.task
     task.setup(instance)
-    runner = TrajectoryRunner(agent, db_client, evaluator, config, process_id)
+    runner = TrajectoryRunner(agent, evaluator, config)
     await runner.run()
 
 
