@@ -34,7 +34,7 @@ class SimpleFactorioEvaluator:
     async def evaluate(
         self,
         code: str,
-    ) -> Evaluation:
+    ) -> tuple[ParsedGameState, Evaluation]:
         try:
             # self.instance.reset(start_state)
             (
@@ -48,11 +48,10 @@ class SimpleFactorioEvaluator:
             ) = await self._evaluate_single(self.instance, code)
             # relative_reward = raw_reward  # - holdout_value
 
-            return Evaluation(
-                game_state=ParsedGameState(
-                    raw=state,
-                    entities=f"{entities}",
-                ),
+            return ParsedGameState(
+                raw=state,
+                entities=f"{entities}",
+            ), Evaluation(
                 response=response,
                 reward=raw_reward,
                 achievements=achievements,

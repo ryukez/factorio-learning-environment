@@ -109,7 +109,7 @@ async def main():
                     agent_version="1",
                     execution=execution,
                     execution_history=execution_history,
-                ).to_json()
+                ).to_dict()
             )
         )
 

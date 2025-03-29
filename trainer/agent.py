@@ -299,14 +299,18 @@ def my_before_sleep(retry_state):
     )
 
 
-class BasicAgent(Agent):
+class IterationAgent(Agent):
     def __init__(self, model: str, system_prompt: str):
         goal_description = "\n\n### Your Final Goal\n- Build the biggest possible factory\n- Maximise automation, efficiency and scale\n\n"
         instructions = GENERAL_INSTRUCTIONS + system_prompt + goal_description
         self.system_prompt = instructions
 
+        self.model = model
         self.llm_factory = LLMFactory(model)
         self.generation_params = GenerationParameters(n=1, max_tokens=2048, model=model)
+
+    def name(self) -> str:
+        return f"IterationAgent-{self.model}"
 
     async def run(
         self,
@@ -361,7 +365,7 @@ class BasicAgent(Agent):
 {game_state.entities}
 
 ## Your Inventory
-{game_state.raw.inventory}
+{game_state.inventory()}
 
 Remember that your python code must be always enclosed with ```python ... ``` decorator. It's very import for parsing your code. It you can't, you will be fired.
 

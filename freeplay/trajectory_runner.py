@@ -5,12 +5,8 @@ from dataclasses import dataclass
 import multiprocessing
 from dotenv import load_dotenv
 
-from freeplay.evaluator import SimpleFactorioEvaluator
-from models.conversation import Conversation
-from models.message import Message
-from models.program import Program
 from instance import FactorioInstance
-from trainer.agent import BasicAgent
+from trainer.agent import IterationAgent
 from trainer.definitions import (
     Step,
     Execution,
@@ -19,11 +15,11 @@ from trainer.definitions import (
     Evaluation,
     DataPoint,
     create_data_point,
+    format_inventory,
 )
+from trainer.evaluator import SimpleFactorioEvaluator
+from trainer.db import SQLliteDBClient2
 
-from namespace import FactorioNamespace
-
-from agents import Response
 from eval.tasks.task_abc import TaskABC
 from eval.open.db_client import DBClient, SQLliteDBClient
 import os
@@ -49,53 +45,7 @@ class PlayConfig:
     model: str
     version: int
     version_description: str
-
-
-def format_inventory(inventory: dict) -> str:
-    slot = 0
-    for item, count in inventory.items():
-        slot += (count - 1) // 50 + 1
-    return f"{inventory}, {max(80 - slot, 0)} slots remaining"
-
-
-def execution_history_from_conversation(conversation: Conversation) -> List[Execution]:
-    """Convert conversation to execution history"""
-    history = []
-    for i in range(1, len(conversation.messages), 2):
-        code = conversation.messages[i].content
-        response = conversation.messages[i + 1].content
-
-        history.append(
-            Execution(
-                step=Step(
-                    number=(i - 1) // 2 + 1,
-                    instruction=conversation.messages[i].metadata.get(
-                        "instruction", ""
-                    ),
-                    iteration_number=conversation.messages[i].metadata.get(
-                        "iteration", 0
-                    ),
-                    in_iteration_number=0,
-                ),
-                game_state=None,
-                agent_output=AgentOutput(
-                    input_messages=[],
-                    raw_response="",
-                    thinking="",
-                    code=code,
-                ),
-                evaluation=Evaluation(
-                    game_state=None,
-                    response=response,
-                    reward=0,
-                    achievements={},
-                    flows=None,
-                    ticks=0,
-                ),
-            )
-        )
-
-    return history
+    runtime_version: str
 
 
 class TrajectoryRunner:
@@ -103,7 +53,7 @@ class TrajectoryRunner:
 
     def __init__(
         self,
-        agent: BasicAgent,
+        agent: IterationAgent,
         db_client: DBClient,
         evaluator: SimpleFactorioEvaluator,
         config: PlayConfig,
@@ -116,6 +66,12 @@ class TrajectoryRunner:
         self.iteration_times = []
         self.process_id = process_id
 
+        self.db2 = SQLliteDBClient2(
+            min_connections=2,
+            max_connections=5,
+            database_file=os.getenv("SQLITE_DB_FILE"),
+        )
+
     def _is_model_compatible_with_n_samples(self, model):
         """Check if model supports batch sampling"""
         return "gpt" in model or "o1" in model or "gemini" in model
@@ -124,45 +80,14 @@ class TrajectoryRunner:
         self,
         step: Step,
         game_state: ParsedGameState,
-        conversation: Conversation,
-        response: Response,
-        meta={},
-    ) -> Program:
-        conversation = copy.deepcopy(conversation)
+        execution_history: List[Execution],
+    ) -> AgentOutput:
         try:
-            agent_output = await self.agent.run(
+            return await self.agent.run(
                 step=step,
                 game_state=game_state,
-                execution_history=execution_history_from_conversation(conversation),
+                execution_history=execution_history,
             )
-
-            if not agent_output:
-                raise Exception("Policy not valid Python. Skipping.")
-
-            try:
-                messages = conversation.model_dump()["messages"]
-            except Exception:
-                messages = conversation.dict()["messages"]
-
-            program = Program(
-                thinking=agent_output.thinking,
-                code=agent_output.code,
-                conversation=conversation,
-                response=response.response if response else None,
-                # token_usage=policy.meta.total_tokens,
-                # completion_token_usage=policy.meta.output_tokens,
-                # prompt_token_usage=policy.meta.input_tokens,
-                version=self.config.version,
-                model=self.config.model,
-                version_description=self.config.version_description,
-                meta={"model": self.config.model, "process_id": self.process_id},
-                depth=len(messages) - 2,
-            )
-
-            if meta:
-                program.meta.update(meta)
-
-            return agent_output, program
 
         except Exception as e:
             print(f"Program generation failed: {str(e)}")
@@ -177,85 +102,60 @@ class TrajectoryRunner:
 
         print(self.start_time)
 
-        current_state = None
+        collection_id = f"{self.config.model}-{self.config.version}"
+        agent_name = self.agent.name
+        runtime_version = self.config.runtime_version
+
+        game_state = None
         # Continue
         if self.config.version:
             (
-                current_state,
-                current_conversation,
-                parent_id,
-                depth,
-            ) = await self.db.get_resume_state(
-                resume_version=self.config.version, process_id=self.process_id
-            )
+                step,
+                game_state,
+                execution_history,
+            ) = await self.db2.get_resume_state(collection_id=collection_id)
 
-            if current_state:
+            if game_state:
                 instance = self.evaluator.instance
-                instance.reset(current_state)
-
-        # print(current_state.inventory)
-        # print(current_state.research)
-        # print(current_state.timestamp)
-        # print(
-        #     instance.namespace._load_entity_state(
-        #         current_state.entities, decompress=True
-        #     )
-        # )
+                instance.reset(game_state.raw)
 
         # New game
-        if not current_state:
-            current_state = self.config.task.starting_game_state
-            depth = 0
+        if not game_state:
             instance = self.evaluator.instance
-            instance.reset(current_state)
-            entities = instance.namespace.get_entities()
-            current_conversation = Conversation(
-                messages=[
-                    Message(role="system", content=self.agent.system_prompt),
-                    Message(
-                        role="assistant",
-                        content="print(f'Inventory: {inspect_inventory()}')\n"
-                        "print(f'Entities: {get_entities()}')\n",
-                    ),
-                    Message(
-                        role="user",
-                        content=f"1: ('Inventory: {current_state.inventory.__dict__}')\n"
-                        f"2: ('Entities: {entities}')",
-                    ),
-                ]
+
+            raw_state = self.config.task.starting_game_state
+            instance.reset(raw_state)
+
+            step = Step(
+                number=0,
+                instruction="Harvest Iron Ore",
+                iteration_number=0,
+                in_iteration_number=0,
             )
-            parent_id = None
+            game_state = ParsedGameState(
+                raw=raw_state,
+                entities=f"{instance.namespace.get_entities()}",
+            )
+            execution_history = []
 
-        # with open("entities.txt", "w") as f:
-        #     f.write(f"{instance.namespace.get_entities()}")
-        # with open("inventory.txt", "w") as f:
-        #     f.write(f"{instance.namespace.inspect_inventory()}")
-
-        # os.exit(1)
-
-        last_response = None
         # Run trajectory
-        STEPS_PER_ITERATION = 50
-        iteration = (depth // STEPS_PER_ITERATION) + 1
+        STEPS_PER_ITERATION = 10
 
-        current_entities = f"{instance.namespace.get_entities()}"
-        current_inventory = format_inventory(instance.namespace.inspect_inventory())
-
-        (previous_iteration_summary,) = await self.agent.report_summary(
-            iteration=iteration,
-            current_inventory=current_inventory,
-            current_entities=current_entities,
-            current_conversation=current_conversation,
-        )
+        # (previous_iteration_summary,) = await self.agent.report_summary(
+        #     iteration=iteration,
+        #     current_inventory=current_inventory,
+        #     current_entities=current_entities,
+        #     current_conversation=current_conversation,
+        # )
 
         while True:
-            iteration += 1
-            print(f"### Iteration {iteration} ###")
+            step.iteration_number += 1
+            print(f"### Iteration {step.iteration_number} ###")
 
             update_spreadsheet_cell(
                 os.getenv("SPREADSHEET_ID"),
                 "System!B1",
-                f"[Iteration {iteration}] 指示の入力を待っています...",
+                f"[Iteration {step.iteration_number}] 指示の入力を待っています...",
             )
 
             # 1分ごとにスプレッドシートにアクセスし、指示が更新されているかを確認
@@ -265,7 +165,7 @@ class TrajectoryRunner:
                     user_input = get_spreadsheet_values(
                         os.getenv("SPREADSHEET_ID"), "Input!E2:E3"
                     )
-                    if user_input and int(user_input[0][0]) == iteration:
+                    if user_input and int(user_input[0][0]) == step.iteration_number:
                         instruction = user_input[1][0]
                         break
                 except Exception as e:
@@ -276,11 +176,10 @@ class TrajectoryRunner:
             update_spreadsheet_cell(
                 os.getenv("SPREADSHEET_ID"),
                 "System!B1",
-                f"[Iteration {iteration}] LLM実行中...",
+                f"[Iteration {step.iteration_number}] LLM実行中...",
             )
 
-            current_entities = f"{instance.namespace.get_entities()}"
-            current_inventory = format_inventory(instance.namespace.inspect_inventory())
+            step.instruction = instruction
 
             # Save results to spreadsheet
             (_, iteration_row_number) = insert_to_spreadsheet(
@@ -290,42 +189,31 @@ class TrajectoryRunner:
                     [
                         self.config.version,
                         self.config.model,
-                        iteration,
+                        step.iteration_number,
                         instruction,
-                        current_entities,
-                        current_inventory,
+                        game_state.entities,
+                        game_state.inventory(),
                     ],
                 ],
             )
 
-            for step in range(STEPS_PER_ITERATION):
+            for in_iteration_number in range(STEPS_PER_ITERATION):
+                step.number += 1
+                step.in_iteration_number = in_iteration_number + 1
+
                 time.sleep(COURTESY_SLEEP)  # courtesy sleep
                 try:
-                    current_entities = f"{instance.namespace.get_entities()}"
-                    current_inventory = format_inventory(
-                        instance.namespace.inspect_inventory()
-                    )
-
                     print("generation starting...")
-                    agent_output, program = await self._generate_program(
-                        step=Step(
-                            number=depth + 1,
-                            instruction=instruction,
-                            iteration_number=iteration,
-                            in_iteration_number=step + 1,
-                        ),
-                        game_state=ParsedGameState(
-                            raw=current_state,
-                            entities=current_entities,
-                        ),
-                        conversation=current_conversation,
-                        response=last_response,
+                    agent_output = await self._generate_program(
+                        step=step,
+                        game_state=game_state,
+                        execution_history=execution_history,
                     )
 
                     print(
                         f"Generated program {multiprocessing.current_process().name} - "
                         f"Model: {self.config.model} - "
-                        f"Step {iteration}-{step + 1}"
+                        f"Step {step.iteration_number}-{step.in_iteration_number}"
                     )
 
                     # Save results to spreadsheet
@@ -336,37 +224,30 @@ class TrajectoryRunner:
                             [
                                 self.config.version,
                                 self.config.model,
-                                iteration,
-                                step + 1,
-                                program.depth // 2,
-                                current_entities,
-                                current_inventory,
-                                program.thinking,
-                                program.code,
+                                step.iteration_number,
+                                step.in_iteration_number,
+                                step.number,
+                                game_state.entities,
+                                game_state.inventory(),
+                                agent_output.thinking,
+                                agent_output.code,
                             ]
                         ],
                     )
-
-                    if not program:
-                        continue
-
-                    program.parent_id = parent_id
 
                     # Evaluate program
                     instance = self.evaluator.instance
                     # instance.reset(current_state)
                     (
-                        evaluated_program,
-                        task_verification_response,
-                    ) = await self.evaluator.evaluate(
-                        program, current_state, iteration, instruction, self.config.task
-                    )
-                    print(program.code + "\n" + "=" * 50)
+                        evaluated_game_state,
+                        evaluation,
+                    ) = await self.evaluator.evaluate(agent_output.code)
+                    print(agent_output.code + "\n" + "=" * 50)
                     print(
                         "\033[1m\n".join(
                             [
                                 ">>>\t" + line
-                                for line in program.response.strip()
+                                for line in evaluation.response.strip()
                                 .replace("\\n", "\n\t")
                                 .split("\n")
                             ]
@@ -376,110 +257,73 @@ class TrajectoryRunner:
                     print(
                         f"Evaluated program {multiprocessing.current_process().name} - "
                         f"Model: {self.config.model} - "
-                        f"Step {iteration}-{step + 1}"
+                        f"Step {step.iteration_number}-{step.in_iteration_number}"
                     )
-
-                    if not evaluated_program:
-                        continue
-
-                    program = evaluated_program
-                    program.meta["task_key"] = self.config.task.task_key
-                    last_response = Response(
-                        code=program.code,
-                        created_at=program.created_at,
-                        score=program.value,
-                        achievements=program.achievements,
-                        step=depth,
-                        ticks=program.ticks,
-                        flows=program.flows,
-                        response=program.response,
-                        task=task_verification_response,
-                    )
-
-                    # Save program
-                    saved_program = await self.db.create_program(program)
-                    print(
-                        f"Saved program {multiprocessing.current_process().name} - "
-                        f"Model: {self.config.model} - "
-                        f"Step {iteration}-{step + 1}"
-                    )
-
-                    parent_id = saved_program.id
 
                     if step_row_number:
                         update_spreadsheet_cell(
                             os.getenv("SPREADSHEET_ID"),
                             f"Steps!J{step_row_number}",
-                            program.response,
+                            evaluation.response,
                         )
+
+                    execution = Execution(
+                        step=step,
+                        agent_output=agent_output,
+                        evaluation=evaluation,
+                    )
+
+                    data_point = create_data_point(
+                        runtime_version=runtime_version,
+                        collection_id=collection_id,
+                        agent_name=agent_name,
+                        input_game_state=game_state,
+                        execution=execution,
+                        execution_history=execution_history,
+                        evaluated_game_state=evaluated_game_state,
+                    )
 
                     with open("execution.json", "w") as f:
                         json.dump(
-                            create_data_point(
-                                collection_id="test",
-                                agent_name="BasicAgent",
-                                agent_version="1",
-                                execution=Execution(
-                                    step=Step(
-                                        number=depth + 1,
-                                        instruction=instruction,
-                                        iteration_number=iteration,
-                                        in_iteration_number=step + 1,
-                                    ),
-                                    game_state=ParsedGameState(
-                                        raw=current_state,
-                                        entities=current_entities,
-                                    ),
-                                    agent_output=agent_output,
-                                    evaluation=Evaluation(
-                                        game_state=program.state,
-                                        response=program.response,
-                                        reward=program.value,
-                                        achievements=program.achievements,
-                                        flows=program.flows,
-                                        ticks=program.ticks,
-                                    ),
-                                ),
-                                execution_history=execution_history_from_conversation(
-                                    program.conversation
-                                ),
-                            ).to_json(),
+                            data_point.to_dict(),
                             f,
                         )
 
-                    # Update state for next iteration
-                    if program.state:
-                        current_state = program.state
-                        current_conversation = program.conversation
+                    await self.db2.create_data_point(data_point)
+
+                    game_state = evaluated_game_state
+                    execution_history.append(copy.deepcopy(execution))
 
                 except Exception as e:
-                    print(f"Error in Step {iteration}-{step + 1}: {e}")
+                    print(
+                        f"Error in Step {step.iteration_number}-{step.in_iteration_number}: {e}"
+                    )
                     continue
 
-            current_entities = f"{instance.namespace.get_entities()}"
-            current_inventory = format_inventory(instance.namespace.inspect_inventory())
+            # current_entities = f"{instance.namespace.get_entities()}"
+            # current_inventory = format_inventory(instance.namespace.inspect_inventory())
 
-            (previous_iteration_summary,) = await self.agent.report_summary(
-                iteration=iteration,
-                current_inventory=current_inventory,
-                current_entities=current_entities,
-                current_conversation=current_conversation,
-            )
+            # (previous_iteration_summary,) = await self.agent.report_summary(
+            #     iteration=iteration,
+            #     current_inventory=current_inventory,
+            #     current_entities=current_entities,
+            #     current_conversation=current_conversation,
+            # )
 
-            if iteration_row_number:
-                update_spreadsheet_cell(
-                    os.getenv("SPREADSHEET_ID"),
-                    f"Iterations!G{iteration_row_number}",
-                    previous_iteration_summary,
-                )
+            # if iteration_row_number:
+            #     update_spreadsheet_cell(
+            #         os.getenv("SPREADSHEET_ID"),
+            #         f"Iterations!G{iteration_row_number}",
+            #         previous_iteration_summary,
+            #     )
 
             elapsed = time.time() - self.start_time
             elapsed_str = f"{int(elapsed // 3600):02d}:{int((elapsed % 3600) // 60):02d}:{int(elapsed % 60):02d}"
             print(
                 f"\033[92m Process {multiprocessing.current_process().name} - "
                 f"Model: {self.config.model} - "
-                f"Itertion {iteration} - "
-                f"Value: {program.value:.2f} - "
+                f"Itertion {step.iteration_number} - "
+                f"Value: {evaluation.reward:.2f} - "
                 f"Elapsed: {elapsed_str} - "
             )
 
@@ -526,7 +370,7 @@ async def run_trajectory(process_id: int, config: PlayConfig):
         instance=instance, value_accrual_time=1, error_penalty=0
     )
 
-    agent = BasicAgent(model=config.model, system_prompt=system_prompt)
+    agent = IterationAgent(model=config.model, system_prompt=system_prompt)
 
     # setup the instance
     task = config.task
