@@ -162,13 +162,13 @@ class Evaluation:
 
     def formatted(self) -> str:
         return f"""Code Execution:
-{self.evaluation.response}
+{self.response}
 
 Achievements:
-{self.evaluation.achievements}
+{self.achievements}
 
 Flows:
-{self.evaluation.flows}
+{self.flows}
 """
 
 
