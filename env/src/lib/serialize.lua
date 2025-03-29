@@ -1248,11 +1248,11 @@ global.utils.serialize_entity = function(entity)
 
     -- Add the current research to the lab
     if entity.name == "lab" then
-        if game.players[1].force.current_research ~= nil then
-            serialized.research = game.players[1].force.current_research.name
-        else
-            serialized.research = nil
-        end
+        -- if game.players[1].force.current_research ~= nil then
+        --     serialized.research = game.players[1].force.current_research.name
+        -- else
+        --     serialized.research = nil
+        -- end
     end
 
     -- Add input and output locations if the entity is a offshore pump

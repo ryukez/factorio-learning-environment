@@ -358,11 +358,11 @@ class IterationAgent(Agent):
                 iteration_messages += [
                     Message(
                         role="assistant",
-                        content=execution.agent_output.code,
+                        content=execution.passed_code(),
                     ),
                     Message(
                         role="user",
-                        content=execution.evaluation.response,
+                        content=execution.evaluation.formatted(),
                     ),
                 ]
 
@@ -400,6 +400,11 @@ Note that  you can only place entities that are in your inventory. If you don't 
 Make sure to keep at least free 20 slots in your inventory, otherwise you will not be able to pick up or craft new items.
 
 {game_state.inventory()}
+
+### Research Status
+Current research status. Note that research makes progress by putting required science packs into labs.
+
+{game_state.research_status()}
 
 ## Important Notes
 - Always inspect game state before making changes
@@ -446,20 +451,26 @@ Your output
 
     async def report_summary(
         self,
-        iteration: int,
-        current_inventory: str,
-        current_entities: str,
-        current_conversation: Conversation,
+        step: Step,
+        game_state: ParsedGameState,
+        execution_history: List[Execution],
     ):
         instruction = ""
-        iteration_messages = []
-        for message in current_conversation.messages:
-            if message.metadata.get("iteration") == iteration:
-                iteration_messages.append(message)
-                instruction = message.metadata.get("instruction")
+        history = ""
+        for execution in execution_history:
+            if execution.step.iteration_number != step.iteration_number:
+                continue
+
+            instruction = execution.step.instruction
+            history += (
+                f"[{execution.step.in_iteration_number}]\n"
+                + f"{execution.agent_output.code}\n"
+                + "=" * 50
+                + f"{execution.evaluation.response}\n"
+            )
 
         iteration_summary = ""
-        if iteration_messages:
+        if len(history) > 0:
             try:
                 iteration_summary_response = await self.llm_factory.acall(
                     messages=[
@@ -467,14 +478,9 @@ Your output
                             "role": "user",
                             "content": iteration_summary_prompt(
                                 instruction,
-                                current_entities,
-                                current_inventory,
-                                "\n".join(
-                                    [
-                                        f"role: {m.role}\ncontent: {m.content}\n"
-                                        for m in iteration_messages
-                                    ]
-                                ),
+                                game_state.entities,
+                                game_state.inventory(),
+                                history,
                             ),
                         }
                     ],
