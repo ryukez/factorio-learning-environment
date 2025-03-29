@@ -46,7 +46,7 @@ class SQLliteDBClient:
                 conn.close()
 
     async def get_resume_state(
-        self, collection_id
+        self, collection_id, step_number=None
     ) -> tuple[
         Optional[Step],
         Optional[ParsedGameState],
@@ -55,16 +55,31 @@ class SQLliteDBClient:
         """Get the state to resume from"""
         try:
             # Get most recent successful program to resume from
-            query = """
-            SELECT * FROM data_points
-            WHERE collection_id = ?
-            ORDER BY step_number DESC
-            LIMIT 1
-            """
-
             with self.get_connection() as conn:
                 cur = conn.cursor()
-                cur.execute(query, (collection_id,))
+
+                if step_number is not None:
+                    cur.execute(
+                        """
+                    SELECT * FROM data_points
+                    WHERE collection_id = ?
+                    AND step_number = ?
+                    ORDER BY step_number DESC
+                    LIMIT 1
+                    """,
+                        (collection_id, step_number),
+                    )
+                else:
+                    cur.execute(
+                        """
+                    SELECT * FROM data_points
+                    WHERE collection_id = ?
+                    ORDER BY step_number DESC
+                    LIMIT 1
+                    """,
+                        (collection_id,),
+                    )
+
                 results = cur.fetchall()
 
             if not results:
