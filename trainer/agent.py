@@ -143,13 +143,6 @@ sorted_furnaces = sorted(
 """
 
 FINAL_INSTRUCTION = """"
-You are given updated state of existing entities on map and your inventory at each step.
-You are supposed to take a look at these information carefully to plan your next step.
-
-- You can place nothing but entities in your current inventory. If you don't have any entities in your inventory, you need to get them first by crafting, harvesting or smelting etc.
-- Try to understand the role of each exsting entities on map. For example, one stone furnace might be used to smelt iron ore into iron plates, while another one might be used to smelt copper ore into copper plates, or to smelt iron plates into steel plates.
-- In opposite, not-working entities have no use in the game. If you need to place some entities, you should first consider replacing existing ones. Example abundoned pipes or belts, not-working inserters, or empty chests.
-
 ## Response Format
 
 ### 1. PLANNING Stage
