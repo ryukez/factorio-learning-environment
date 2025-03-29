@@ -301,22 +301,18 @@ class TrajectoryRunner:
                     )
                     continue
 
-            # current_entities = f"{instance.namespace.get_entities()}"
-            # current_inventory = format_inventory(instance.namespace.inspect_inventory())
+            (previous_iteration_summary,) = await self.agent.report_summary(
+                step,
+                game_state,
+                execution_history,
+            )
 
-            # (previous_iteration_summary,) = await self.agent.report_summary(
-            #     iteration=iteration,
-            #     current_inventory=current_inventory,
-            #     current_entities=current_entities,
-            #     current_conversation=current_conversation,
-            # )
-
-            # if iteration_row_number:
-            #     update_spreadsheet_cell(
-            #         os.getenv("SPREADSHEET_ID"),
-            #         f"Iterations!G{iteration_row_number}",
-            #         previous_iteration_summary,
-            #     )
+            if iteration_row_number:
+                update_spreadsheet_cell(
+                    os.getenv("SPREADSHEET_ID"),
+                    f"Iterations!G{iteration_row_number}",
+                    previous_iteration_summary,
+                )
 
             elapsed = time.time() - self.start_time
             elapsed_str = f"{int(elapsed // 3600):02d}:{int((elapsed % 3600) // 60):02d}:{int(elapsed % 60):02d}"
