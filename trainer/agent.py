@@ -358,11 +358,11 @@ class IterationAgent(Agent):
                 iteration_messages += [
                     Message(
                         role="assistant",
-                        content=execution.agent_output.code,
+                        content=execution.passed_code(),
                     ),
                     Message(
                         role="user",
-                        content=execution.evaluation.response,
+                        content=execution.evaluation.formatted(),
                     ),
                 ]
 

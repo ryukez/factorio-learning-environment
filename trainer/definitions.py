@@ -3,6 +3,7 @@ from dataclasses import dataclass
 from env.src.models.game_state import GameState
 from typing import List, Dict
 from models.achievements import ProductionFlows
+import re
 
 
 @dataclass
@@ -159,6 +160,20 @@ class Evaluation:
             ticks=data["ticks"],
         )
 
+    def formatted(self) -> str:
+        return f"""Code Execution:
+{self.evaluation.response}
+
+Achievements:
+{self.evaluation.achievements}
+
+Flows:
+{self.evaluation.flows}
+"""
+
+
+line_number_pattern = re.compile(r"^(\d+): \(")
+
 
 @dataclass
 class Execution:
@@ -180,6 +195,25 @@ class Execution:
             agent_output=AgentOutput.from_dict(data["agent_output"]),
             evaluation=Evaluation.from_dict(data["evaluation"]),
         )
+
+    def passed_code(self) -> str:
+        lines = self.agent_output.code.split("\n")
+
+        eval_lines = self.evaluation.response.split("\n")
+
+        error_line_number = None
+        for line in eval_lines:
+            if ": ('Error occurred:\\n" in line or ": ('\\nException:" in line:
+                line_number = line_number_pattern.match(line)
+                if line_number:
+                    error_line_number = int(line_number.group(1))
+                    break
+
+        pass_line_number = (
+            len(lines) if error_line_number is None else error_line_number
+        )
+
+        return "\n".join(lines[:pass_line_number])
 
 
 class Agent(ABC):
