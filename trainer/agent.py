@@ -401,6 +401,11 @@ Make sure to keep at least free 20 slots in your inventory, otherwise you will n
 
 {game_state.inventory()}
 
+### Research Status
+Current research status. Note that research makes progress by putting required science packs into labs.
+
+{game_state.research_status()}
+
 ## Important Notes
 - Always inspect game state before making changes
 - Consider long-term implications of actions

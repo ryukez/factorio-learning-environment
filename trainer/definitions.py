@@ -49,6 +49,7 @@ class ParsedGameState:
             "raw": self.raw.to_raw(),
             "entities": self.entities,
             "inventory": self.inventory(),
+            "research_status": self.research_status(),
         }
 
     @classmethod
@@ -60,6 +61,31 @@ class ParsedGameState:
 
     def inventory(self) -> str:
         return format_inventory(self.raw.inventory)
+
+    def research_status(self) -> str:
+        completed = []
+        for name, tech in self.raw.research.technologies.items():
+            if tech.researched:
+                completed.append(name)
+
+        current_research = "None"
+        if self.raw.research.current_research:
+            current_research = (
+                f"{self.raw.research.current_research}"
+                + " ("
+                + "%.1f" % (self.raw.research.research_progress * 100)
+                + "%)"
+            )
+
+        completed_researchs = f"{completed}"
+
+        return (
+            "Current Research: "
+            + current_research
+            + "\n"
+            + "Completed: "
+            + completed_researchs
+        )
 
 
 @dataclass
