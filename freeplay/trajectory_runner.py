@@ -12,6 +12,7 @@ from models.message import Message
 from models.program import Program
 from instance import FactorioInstance
 from freeplay.basic_agent import BasicAgent
+from game_types import Prototype, Position
 
 from namespace import FactorioNamespace
 
@@ -27,6 +28,7 @@ from spreadsheet import (
     update_spreadsheet_cell,
 )
 from models.game_state import GameState
+from agents import Policy
 
 load_dotenv()
 
@@ -94,30 +96,30 @@ class TrajectoryRunner:
                 messages = conversation.model_dump()["messages"]
             except Exception:
                 messages = conversation.dict()["messages"]
-
-            program = Program(
-                thinking=policy.thinking,
-                code=policy.code,
-                conversation=conversation,
-                response=response.response if response else None,
-                token_usage=policy.meta.total_tokens,
-                completion_token_usage=policy.meta.output_tokens,
-                prompt_token_usage=policy.meta.input_tokens,
-                version=self.config.version,
-                model=self.agent.model,
-                version_description=self.config.version_description,
-                meta={"model": self.agent.model, "process_id": self.process_id},
-                depth=len(messages) - 2,
-            )
-
-            if meta:
-                program.meta.update(meta)
-
-            return program
-
         except Exception as e:
             print(f"Program generation failed: {str(e)}")
-            return []
+            policy = Policy(thinking="", code="", meta={})
+
+        program = Program(
+            thinking=policy.thinking,
+            code=policy.code,
+            conversation=conversation,
+            response=response.response if response else None,
+            token_usage=policy.meta.total_tokens,
+            completion_token_usage=policy.meta.output_tokens,
+            prompt_token_usage=policy.meta.input_tokens,
+            version=self.config.version,
+            model=self.agent.model,
+            version_description=self.config.version_description,
+            meta={"model": self.agent.model, "process_id": self.process_id},
+            depth=len(messages) - 2,
+        )
+
+        if meta:
+            program.meta.update(meta)
+
+        return program
+
 
     async def run(self):
         """Run a single trajectory"""
@@ -154,6 +156,13 @@ class TrajectoryRunner:
         #     )
         # )
 
+        # offshore_pump = instance.namespace.get_entity(Prototype.OffshorePump, Position(x=-7.5, y=-27.5))
+        # boiler = instance.namespace.get_entity(Prototype.Boiler, Position(x=-6.5, y=-24.0))
+
+        # print(instance.namespace.connect_entities(offshore_pump, boiler, Prototype.Pipe))
+        # print("lab" in instance.namespace.inspect_inventory().keys())
+        # os.exit(1)
+
         # New game
         if not current_state:
             current_state = self.agent.task.starting_game_state
@@ -188,7 +197,7 @@ class TrajectoryRunner:
 
         last_response = None
         # Run trajectory
-        STEPS_PER_ITERATION = 50
+        STEPS_PER_ITERATION = 20
         iteration = (depth // STEPS_PER_ITERATION) + 1
 
         current_entities = f"{instance.namespace.get_entities()}"
@@ -218,6 +227,7 @@ class TrajectoryRunner:
                     user_input = get_spreadsheet_values(
                         os.getenv("SPREADSHEET_ID"), "Input!E2:E3"
                     )
+                    print(f"User input: {user_input}, iteration: {iteration}")
                     if user_input and int(user_input[0][0]) == iteration:
                         instruction = user_input[1][0]
                         break
@@ -409,7 +419,7 @@ def create_factorio_instance(instance_id: int) -> FactorioInstance:
     if instance_id > 0:
         raise ValueError("Only one instance is supported")
 
-    ips = ["192.168.0.108"]
+    ips = ["localhost"]
     tcp_ports = [27000]
 
     instance = FactorioInstance(

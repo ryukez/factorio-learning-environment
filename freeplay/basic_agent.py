@@ -144,29 +144,38 @@ sorted_furnaces = sorted(
     key=lambda e: (e.position.x, e.position.y)
 )
 ```
-
-## Important Notes
-- Use transport belts to keep burners fed with coal
-- Always inspect game state before making changes
-- Consider long-term implications of actions
-- Maintain working systems, and clear entities that aren't working or don't have a clear purpose
-- Build incrementally and verify each step
-- DON'T REPEAT YOUR PREVIOUS STEPS - just continue from where you left off. Take into account what was the last action that was executed and continue from there. If there was a error previously, do not repeat your last lines - as this will alter the game state unnecessarily.
-- Do not encapsulate your code in a function _unless_ you are writing a utility for future use - just write it as if you were typing directly into the Python interpreter.
-- Your inventory has space for ~2000 items. If it fills up, insert the items into a chest.
-- Ensure that your factory is arranged in a grid, as this will make things easier.
-- Try to assign a specific and clear role to each entity, and ensure that it is working as expected. Check if similar entities are already present on the map. If exists, try to reuse them or fix the issues with them.
 """
 
 
 def entity_summary_prompt(entities: str):
     return f"""
+# Factorio LLM Agent Instructions
+## Overview
+You are an AI agent designed to play Factorio, specializing in:
+- Long-horizon planning
+- Spatial reasoning 
+- Systematic automation
+
+## Game Progression
+- Think about long term objectives, and break them down into smaller, manageable steps.
+- Advance toward more complex automation
+- Build on previous successes
+- Maintain efficient resource usage
+
+## Instruction
 You are a report generating model for the game factorio. 
 Given existing entities, you must summarise what structures the agent has created on the map and what are the use-cases of those structures. You must also bring out the entities and positions of entities of each of those structures.
 
-Focus on the structures themselves. Do not bring out entities separately, create sections like 
+Focus on the structures themselves. If multiple sections are connected, summarise them as one structure.
+Do not bring out entities separately, create sections like 
 ###Electricity generator at position(x)
 Consists of steam engine(position x), boiler(position y) and offshore pump (position z)
+
+Role:
+- Generator produces electricity by burning fuel. It supplies electricity to nearby entities through electric poles.
+Issues:
+- It is working as expected
+- However, the fuel supply is not automated. We need to automate the coal supply to the boiler occasionally.
 
 ###Copper plate mine at position(x)
 Consists of following entities
@@ -174,15 +183,21 @@ Consists of following entities
 -  Burner mining drill (position x2) and a furnace at position(y2)
 -  Burner mining drill (position x3) and a furnace at position(y3)
 
+Role:
+- Mines copper ore and smelts it into copper plates
+Issues:
+- The burner mining drill at position x3 is not working due to lack of fuel. We need to supply coal to it.
+
 ###Copper cable factory
 Consists of following entities
 -  Burner mining drill (position x1) and a furnace at position(y1)
 -  Assembling machine at position(z1) and inserter at position(a) that puts into assembling machine
 -  Beltgroup (position ) that connects the furnace at position y1 to assembling machine at position(z1)
 
-- If multiple sections are connected, summarise them as one structure
-- Do not include any mention of harvesting or crafting activities. That is not the aim of this report and is self-evident as the agent can see its own inventory
-- All structures from the previous report that did not have any updates, include them in the new report unchanged
+Role:
+- Produces copper cables from copper plates
+Issues:
+- No issues. It is working as expected.
 
 Output the summary only, do not include any other information.
 
@@ -212,8 +227,8 @@ Build a power plant, consisting of a offshore pomp, boiler, and steam engine.
 [Hints From Supervisor]
 - You need to prepare enough iron and copper plates first to craft facilities
 
-Based on the inventory state and execution logs, you must generate a report of the previous iteration.
-The report must have 3 sections: CHANGES, TASK COMPLETION ANALYSIS and ERROR TIPS. Below are instructions for both of them:
+Based on the entities on the map, inventory state and execution logs, you must generate a report of the previous iteration.
+The report must have 3 sections: CHANGES, NEXT ITERATION PLANING and ERROR TIPS. Below are instructions for both of them:
 
 CHANGES
 Describe what is done duration the iteration.
@@ -227,27 +242,25 @@ In the previous iteration,
 - now we have boiler and steam engine in the inventory, so we can place them in the neighbor of existing offshore pomp at position(x5) to build power plant!
 - The burner drill at position(x6) was not working due to insufficient fuel. I fixed the issue by feeding some coals. Because we have no automated coal supplies, I should feed them manually for a while when it is out of fuel.
 
-TASK COMPLETION ANALYSIS
-Analyze how is the task is going, given existing entities, inventory state and execution logs.
-If the given task is completed, you should summarize:
-- the entities related to the task, its status and positions
-- notes useful for the following actions
+NEXT ITERATION PLANING
+Analyze how is the task is going and plan the next iteration (consists of 20 steps).
+If the given task is completed, you can just summarize the completion.
 
-If the task is not completed yet, you should summarize:
-- the remaining steps planned 
-- difficulties or obstacles you are facing
+If the task is not completed yet, you should first difficulties or obstacles you are facing.
+Then you should plan the next iteration to complete the task.
+- What are the remaining steps to complete the task
 - required items to complete the task
 
 Example:
-We have not yet built complete the task of building power plant.
-As the remaining steps, we need:
-- Get enough amount of iron and copper plates to craft offshore pomp, boiler and steam engine. We need more 30 iron plates and 3 copper plates.
-- Craft the entities
-- Connect them with pipes
+We have not yet built achive the objective of building power plant.
 
-To get iron and copper plates, we can't craft them and need to smelt ores through furnaces.
-I have already built stone furnace for iron plates, but one for copper plates are not yet prepared.
-Next we need to build a stone furnace for copper ones. At the same time, coals and ores should be fed into the stone furnace of iron plates to get iron plates constantly.
+Difficulties and Obstacles:
+- We are facing difficulties in extracting resources from chests and furnaces. This is because my inventory is full. I need to clear some space in my inventory to extract more items, by either crafting them into higher level items or storing them in chests.
+- We need to ensure a consistent supply of coal to the furnaces to keep them operational.
+
+To complete the task, we need to:
+- 1. Get enough amount of iron and copper plates to craft offshore pomp, boiler and steam engine. We need more 30 iron plates and 3 copper plates.
+- 2. Craft the entities and onnect them with pipes
 
 ERROR TIPS
 In this section you must analyse the errors that the agent has made and bring out tips how to mitigate these errors. 
@@ -269,10 +282,10 @@ You must output only the report. Any other texts are forbidden.
 ## Instruction
 {instruction}
 
-## Entities
+## Entities on the map
 {entities}
 
-## Inventory
+## Your Inventory
 {inventory}
 
 ## Execution Logs
@@ -326,20 +339,6 @@ class BasicAgent(AgentABC):
         current_entities: str,
         current_conversation: Conversation,
     ):
-        # entity_summary_response = await self.llm_factory.acall(
-        #     messages=[
-        #         {
-        #             "role": "user",
-        #             "content": entity_summary_prompt(entities),
-        #         }
-        #     ],
-        #     n_samples=1,  # We only need one program per iteration
-        #     temperature=self.generation_params.temperature,
-        #     max_tokens=16384,  # use longer max_tokens
-        #     model=self.generation_params.model,
-        # )
-        # entity_summary = entity_summary_response.choices[0].message.content
-
         instruction = ""
         iteration_messages = []
         for message in current_conversation.messages:
@@ -386,11 +385,26 @@ class BasicAgent(AgentABC):
         entities: str,
         inventory: str,
     ) -> Policy:
+        entity_summary_response = await self.llm_factory.acall(
+            messages=[
+                {
+                    "role": "user",
+                    "content": entity_summary_prompt(entities),
+                }
+            ],
+            n_samples=1,  # We only need one program per iteration
+            temperature=self.generation_params.temperature,
+            max_tokens=16384,  # use longer max_tokens
+            model=self.generation_params.model,
+        )
+        entity_summary = entity_summary_response.choices[0].message.content
+        print(entity_summary)
+
         # We format the conversation every N steps to add a context summary to the system prompt
         formatted_conversation = await self.formatter.format_conversation(
             conversation,
             namespace,
-            entities,
+            entity_summary,
             inventory,
         )
         # We set the new conversation state for external use

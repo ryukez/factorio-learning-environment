@@ -250,6 +250,8 @@ class Technology(enum.Enum):
     # AdvancedBattery = "battery-mk2-equipment"
     NuclearPower = "nuclear-power"
 
+    Optics = "optics"
+
     # Mining technologies
     SteelProcessing = "steel-processing"
     AdvancedMaterialProcessing = "advanced-material-processing"

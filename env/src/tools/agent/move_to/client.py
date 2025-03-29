@@ -55,7 +55,8 @@ class MoveTo(Tool):
             else:
                 response, execution_time = self.execute(PLAYER, path_handle, NONE, NONE)
 
-            print(response)
+            if response == "nil":
+                raise Exception("Could not move. No executable path found. Maybe the destination is too far.")
 
             if isinstance(response, int) and response == 0:
                 raise Exception("Could not move.")

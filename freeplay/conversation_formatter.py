@@ -26,15 +26,13 @@ You are supposed to take a look at these information carefully to plan your next
 ### 1. PLANNING Stage
 Think through each step extensively in natural language, addressing:
 1. Error Analysis
-   - Was there an error in the previous execution?
-   - If yes, what was the problem?
+- Was there an error in the previous execution?
+- If yes, what was the problem?
+- To avoid the error, how different approach can be taken?
 2. Next Step Planning
-   - What is the most useful next step of reasonable size?
-   - Why is this step valuable?
-   - Should I 
-3. Action Planning
-   - What specific actions are needed?
-   - What resources are required?
+- What specific actions are needed?
+- What resources are required?
+- Then, what is the most useful next step of reasonable size?
 
 ### 2. POLICY Stage
 Write Python code to execute the planned actions:
@@ -77,7 +75,7 @@ class ConversationFormatter(ConversationFormatter):
         self,
         conversation: Conversation,
         namespace: FactorioNamespace,
-        current_entities: str,
+        entity_summary: str,
         current_inventory: str,
     ) -> Conversation:
         """
@@ -100,12 +98,7 @@ class ConversationFormatter(ConversationFormatter):
         updated_system_prompt = f"""
 {self.system_prompt}
 
-## Previous Iteration Summary
-{self.previous_iteration_summary}
-
 {FINAL_INSTRUCTION}
-
-{self.instruction}
 """
 
         messages = (
@@ -120,11 +113,21 @@ class ConversationFormatter(ConversationFormatter):
                 Message(
                     role="user",
                     content=f"""
+{self.instruction}
+
 ## Existing Entities on Map
-{current_entities}
+{entity_summary}
 
 ## Your Inventory
 {current_inventory}
+
+## Important Notes
+- Always inspect game state before making changes
+- Consider long-term implications of actions
+- Maintain working systems, and clear entities that aren't working or don't have a clear purpose
+- Build incrementally and verify each step
+- DON'T REPEAT YOUR PREVIOUS STEPS - just continue from where you left off. Take into account what was the last action that was executed and continue from there. If there was a error previously, do not repeat your last lines - as this will alter the game state unnecessarily.
+- Always keep at least free 20 slots in your inventory, otherwise you will not be able to pick up or craft new items.
 
 Remember that your python code must be always enclosed with ```python ... ``` decorator. It's very import for parsing your code. It you can't, you will be fired.
 
@@ -134,6 +137,15 @@ Your output
             ]
         )
 
+        with open("messages.json", "w") as f:
+            json.dump(
+                [
+                    {"role": m.role, "content": m.content}
+                    for m in messages
+                ],
+                f, indent=2
+            )
+            
         return Conversation(messages=messages)
 
     def format_message(self, message: Message) -> Message:
