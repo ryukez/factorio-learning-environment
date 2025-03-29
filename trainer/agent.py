@@ -1,9 +1,8 @@
+from typing import List
+from trainer.definitions import Step, Execution, AgentOutput, Agent
+
 # Copied from agents/basic_agent.py
 import tenacity
-import json
-
-from agents import Response, CompletionResult, Policy
-from agents.agent_abc import AgentABC
 from agents.utils.llm_factory import LLMFactory
 from agents.utils.parse_response import parse_response
 from models.conversation import Conversation
@@ -11,14 +10,11 @@ from models.generation_parameters import GenerationParameters
 from tenacity import (
     wait_exponential,
     retry_if_exception_type,
-    wait_random_exponential,
     stop_after_attempt,
 )
-from freeplay.recursive_report_formatter import RecursiveReportFormatter
 import logging
+from trainer.definitions import Message, ParsedGameState
 
-from namespace import FactorioNamespace
-from freeplay.conversation_formatter import ConversationFormatter
 
 GENERAL_INSTRUCTIONS = """
 # Factorio LLM Agent Instructions
@@ -146,6 +142,37 @@ sorted_furnaces = sorted(
 ```
 """
 
+FINAL_INSTRUCTION = """"
+## Response Format
+
+### 1. PLANNING Stage
+Think through each step extensively in natural language, addressing:
+1. Error Analysis
+- Was there an error in the previous execution?
+- If yes, what was the problem?
+- To avoid the error, how different approach can be taken?
+2. Next Step Planning
+- What specific actions are needed?
+- What resources are required?
+- Then, what is the most useful next step of reasonable size?
+
+### 2. POLICY Stage
+Write Python code to execute the planned actions:
+```python
+# Code must be enclosed in Python tags
+your_code_here
+```
+
+Your output should be in the following format:
+[Planning]
+your_planning_here
+
+[Policy]
+```python
+your_code_here
+```
+"""
+
 
 def entity_summary_prompt(entities: str):
     return f"""
@@ -155,56 +182,44 @@ You are an AI agent designed to play Factorio, specializing in:
 - Long-horizon planning
 - Spatial reasoning 
 - Systematic automation
-
 ## Game Progression
 - Think about long term objectives, and break them down into smaller, manageable steps.
 - Advance toward more complex automation
 - Build on previous successes
 - Maintain efficient resource usage
-
 ## Instruction
 You are a report generating model for the game factorio. 
 Given existing entities, you must summarise what structures the agent has created on the map and what are the use-cases of those structures. You must also bring out the entities and positions of entities of each of those structures.
-
 Focus on the structures themselves. If multiple sections are connected, summarise them as one structure.
 Do not bring out entities separately, create sections like 
 ###Electricity generator at position(x)
 Consists of steam engine(position x), boiler(position y) and offshore pump (position z)
-
 Role:
 - Generator produces electricity by burning fuel. It supplies electricity to nearby entities through electric poles.
 Issues:
 - It is working as expected
 - However, the fuel supply is not automated. We need to automate the coal supply to the boiler occasionally.
-
 ###Copper plate mine at position(x)
 Consists of following entities
 -  Burner mining drill (position x1) and a furnace at position(y1)
 -  Burner mining drill (position x2) and a furnace at position(y2)
 -  Burner mining drill (position x3) and a furnace at position(y3)
-
 Role:
 - Mines copper ore and smelts it into copper plates
 Issues:
 - The burner mining drill at position x3 is not working due to lack of fuel. We need to supply coal to it.
-
 ###Copper cable factory
 Consists of following entities
 -  Burner mining drill (position x1) and a furnace at position(y1)
 -  Assembling machine at position(z1) and inserter at position(a) that puts into assembling machine
 -  Beltgroup (position ) that connects the furnace at position y1 to assembling machine at position(z1)
-
 Role:
 - Produces copper cables from copper plates
 Issues:
 - No issues. It is working as expected.
-
 Output the summary only, do not include any other information.
-
 [Input]
 {entities}
-
-[Output]
 """
 
 
@@ -309,27 +324,124 @@ def my_before_sleep(retry_state):
     )
 
 
-class BasicAgent(AgentABC):
-    def __init__(self, model, system_prompt, task, *args, **kwargs):
-        self.task = task
-        goal_description = f"\n\n### Your Final Goal\n{task.goal_description}\n\n"
+class IterationAgent(Agent):
+    def __init__(self, model: str, system_prompt: str):
+        goal_description = "\n\n### Your Final Goal\n- Build the biggest possible factory\n- Maximise automation, efficiency and scale\n\n"
         instructions = GENERAL_INSTRUCTIONS + system_prompt + goal_description
+        self.system_prompt = instructions
 
-        super().__init__(model, instructions, *args, **kwargs)
+        self.model = model
         self.llm_factory = LLMFactory(model)
-        self.formatter = ConversationFormatter(instructions)
         self.generation_params = GenerationParameters(n=1, max_tokens=8192, model=model)
 
-    async def start_iteration(
+    def name(self) -> str:
+        return f"IterationAgent-{self.model}"
+
+    async def run(
         self,
-        iteration: int,
-        instruction: str,
-        previous_iteration_summary: str,
-    ):
-        self.formatter.start_iteration(
-            iteration=iteration,
-            instruction=instruction,
-            previous_iteration_summary=previous_iteration_summary,
+        step: Step,
+        game_state: ParsedGameState,
+        execution_history: List[Execution],
+    ) -> AgentOutput:
+        messages = self._format_messages(step, game_state, execution_history)
+        return await self._get_policy(messages)
+
+    def _format_messages(
+        self,
+        step: Step,
+        game_state: ParsedGameState,
+        execution_history: List[Execution],
+    ) -> List[Message]:
+        iteration_messages: List[Message] = []
+        for execution in execution_history:
+            if execution.step.iteration_number == step.iteration_number:
+                iteration_messages += [
+                    Message(
+                        role="assistant",
+                        content=execution.agent_output.code,
+                    ),
+                    Message(
+                        role="user",
+                        content=execution.evaluation.response,
+                    ),
+                ]
+
+        updated_system_prompt = f"""
+{self.system_prompt}
+
+{FINAL_INSTRUCTION}
+
+{step.instruction}
+"""
+
+        messages = (
+            [
+                Message(
+                    role="system",
+                    content=updated_system_prompt,
+                )
+            ]
+            + iteration_messages
+            + [
+                Message(
+                    role="user",
+                    content=f"""
+## Existing Entities on Map
+Here is a list of existing entities on the map.
+If there are issues with existing entities, you should try to fix them, by supplying missing resources, repairing broken connections, or removing unnecessary entities.
+Note that you don't need to care about "Chest is full". Chests are entities to store items, and they can be full.
+You should consider making use of items in the inventories of entities, before crafting or harvesting new items.
+
+{game_state.entities}
+
+## Your Inventory
+Here is a list of entities in your inventory.
+Note that  you can only place entities that are in your inventory. If you don't have any entities in your inventory, you need to get them first by crafting, harvesting or smelting etc.
+Make sure to keep at least free 20 slots in your inventory, otherwise you will not be able to pick up or craft new items.
+
+{game_state.inventory()}
+
+## Important Notes
+- Always inspect game state before making changes
+- Consider long-term implications of actions
+- Maintain working systems, and clear entities that aren't working or don't have a clear purpose
+- Build incrementally and verify each step
+- DON'T REPEAT YOUR PREVIOUS STEPS - just continue from where you left off. Take into account what was the last action that was executed and continue from there. If there was a error previously, do not repeat your last lines - as this will alter the game state unnecessarily.
+
+Remember that your python code must be always enclosed with ```python ... ``` decorator. It's very import for parsing your code. It you can't, you will be fired.
+
+Your output
+[Planning]""",
+                ),
+            ]
+        )
+
+        return messages
+
+    @tenacity.retry(
+        retry=retry_if_exception_type(Exception),
+        wait=wait_exponential(multiplier=1, min=4, max=10),
+        before_sleep=my_before_sleep,
+        stop=stop_after_attempt(3),
+    )
+    async def _get_policy(self, messages: List[Message]) -> AgentOutput:
+        response = await self.llm_factory.acall(
+            messages=[{"role": msg.role, "content": msg.content} for msg in messages],
+            n_samples=1,  # We only need one program per iteration
+            temperature=self.generation_params.temperature,
+            max_tokens=self.generation_params.max_tokens,
+            model=self.generation_params.model,
+        )
+
+        policy = parse_response(response)
+        if not policy:
+            raise Exception("Not a valid Python policy")
+
+        return AgentOutput(
+            input_messages=messages,
+            raw_response=policy.meta.text_response,
+            thinking=policy.thinking,
+            code=policy.code,
         )
 
     async def report_summary(
@@ -371,7 +483,9 @@ class BasicAgent(AgentABC):
                     max_tokens=2048,  # use longer max_tokens
                     model=self.generation_params.model,
                 )
-                iteration_summary = iteration_summary_response.choices[0].message.content
+                iteration_summary = iteration_summary_response.choices[
+                    0
+                ].message.content
             except Exception as e:
                 logging.error(f"Failed to generate iteration summary: {e}")
                 iteration_summary = ""
@@ -380,72 +494,3 @@ class BasicAgent(AgentABC):
             # entity_summary,
             f"{iteration_summary}",
         )
-
-    async def step(
-        self,
-        conversation: Conversation,
-        response: Response,
-        namespace: FactorioNamespace,
-        entities: str,
-        inventory: str,
-    ) -> Policy:
-        entity_summary = entities
-        for i in range(3):
-            try:
-                entity_summary_response = await self.llm_factory.acall(
-                    messages=[
-                        {
-                            "role": "user",
-                            "content": entity_summary_prompt(entities),
-                        }
-                    ],
-                    n_samples=1,  # We only need one program per iteration
-                    temperature=self.generation_params.temperature,
-                    max_tokens=16384,  # use longer max_tokens
-                    model=self.generation_params.model,
-                )
-                entity_summary = entity_summary_response.choices[0].message.content
-                break
-            except Exception as e:
-                logging.error(f"Failed to generate entity summary: {e}")
-
-        # We format the conversation every N steps to add a context summary to the system prompt
-        formatted_conversation = await self.formatter.format_conversation(
-            conversation,
-            namespace,
-            entity_summary,
-            inventory,
-        )
-        # We set the new conversation state for external use
-        self.set_conversation(formatted_conversation)
-
-        return await self._get_policy(formatted_conversation)
-
-    @tenacity.retry(
-        retry=retry_if_exception_type(Exception),
-        wait=wait_exponential(multiplier=1, min=4, max=10),
-        before_sleep=my_before_sleep,
-        stop=stop_after_attempt(3),
-    )
-    async def _get_policy(self, conversation: Conversation):
-        messages = self.formatter.to_llm_messages(conversation)
-
-        with open("messages.json", "w") as f:
-            json.dump(messages, f)
-
-        response = await self.llm_factory.acall(
-            messages=messages,
-            n_samples=1,  # We only need one program per iteration
-            temperature=self.generation_params.temperature,
-            max_tokens=self.generation_params.max_tokens,
-            model=self.generation_params.model,
-        )
-
-        policy = parse_response(response)
-        if not policy:
-            raise Exception("Not a valid Python policy")
-
-        return policy
-
-    async def end(self, conversation: Conversation, completion: CompletionResult):
-        pass

@@ -47,6 +47,7 @@ def main():
         model=run_config["model"],
         version=version,
         version_description=f"model:{run_config['model']}\ntype:{task.task_key}",
+        runtime_version=run_config["runtime_version"],
     )
 
     run_process(0, config)

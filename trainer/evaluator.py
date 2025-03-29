@@ -10,6 +10,7 @@ from entities import Entity, EntityGroup
 from instance import FactorioInstance
 from utils.profits import get_achievements
 from models.conversation import Conversation
+from trainer.definitions import Evaluation, ParsedGameState
 
 
 class SimpleFactorioEvaluator:
@@ -32,12 +33,8 @@ class SimpleFactorioEvaluator:
 
     async def evaluate(
         self,
-        program: Program,
-        start_state: GameState,
-        iteration: int,
-        instruction: str,
-        task,
-    ) -> Program:
+        code: str,
+    ) -> tuple[ParsedGameState, Evaluation]:
         try:
             # self.instance.reset(start_state)
             (
@@ -48,48 +45,28 @@ class SimpleFactorioEvaluator:
                 achievements,
                 flows,
                 ticks,
-            ) = await self._evaluate_single(
-                self.instance.tcp_port, program, self.instance
-            )
-            task_response = task.verify(
-                score=raw_reward, instance=self.instance, step_statistics=flows
-            )
-            relative_reward = raw_reward  # - holdout_value
+            ) = await self._evaluate_single(self.instance, code)
+            # relative_reward = raw_reward  # - holdout_value
 
-            program.value = relative_reward
-            program.state = state
-            program.raw_reward = raw_reward
-            program.ticks = ticks
-            conversation = copy.deepcopy(program.conversation)
-
-            final_response = task.enhance_response_with_task_output(
-                response, task_response
+            return ParsedGameState(
+                raw=state,
+                entities=f"{entities}",
+            ), Evaluation(
+                response=response,
+                reward=raw_reward,
+                achievements=achievements,
+                flows=flows,
+                ticks=ticks,
             )
-            conversation.add_result(
-                program.code,
-                final_response,
-                iteration=iteration,
-                instruction=instruction,
-                score=raw_reward,
-                advantage=relative_reward,
-                objectives=program.meta["objectives"]
-                if "objectives" in program.meta
-                else [],
-            )  #
-            program.conversation = conversation
-            program.response = response
-            program.achievements = achievements
-            program.flows = flows
-
-            program.meta["task_response"] = task_response.dict()
-            return program, task_response
 
         except Exception as e:
             print(e)
             raise e
 
     async def _evaluate_single(
-        self, instance_port: int, program: Program, instance: FactorioInstance
+        self,
+        instance: FactorioInstance,
+        code: str,
     ) -> Tuple[
         float,
         GameState,
@@ -112,9 +89,8 @@ class SimpleFactorioEvaluator:
             )
 
             initial_value, start_time = instance.namespace.score()
-            reward, time, result = instance.eval(program.code, timeout=60)
+            reward, time, result = instance.eval(code, timeout=60)
 
-            entities = instance.namespace.get_entities()
             # final_inventory = instance.namespace.inspect_inventory()
 
             # # Check to see if the inventories are different
@@ -158,6 +134,7 @@ class SimpleFactorioEvaluator:
             # Sleep for 3 seconds to get output flows
             await asyncio.sleep(self.value_accrual_time)
             state = GameState.from_instance(instance)
+            entities = instance.namespace.get_entities()
 
             score, _ = instance.namespace.score()
             final_reward = score - initial_value
