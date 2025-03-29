@@ -211,6 +211,8 @@ class FluidConnectionResolver(Resolver):
             positions.append(IndexedPosition(x=pipe.position.right().x, y=pipe.position.right().y, type=fluid))
         return positions
 
+    def _indexed_position(self, postions: List[Position], type: str) -> List[IndexedPosition]:
+        return [IndexedPosition(x=pos.x, y=pos.y, type=type) for pos in postions]
 
     def get_target_fluid_positions(self, target):
         """
@@ -220,25 +222,25 @@ class FluidConnectionResolver(Resolver):
         match target:
             # offshore pump does not expect anything, only provides water
             case OffshorePump():
-                target_positions = [IndexedPosition(x=pos.x, y=pos.y, type="") for pos in target.connection_points]
+                target_positions = self._indexed_position(target.connection_points, "")
             # boiler can also receive steam because you can do engine-to-boiler connections
             case Boiler():
-                target_steam_positions = [IndexedPosition(x=target.steam_output_point.x, y=target.steam_output_point.y, type="steam")] if target.steam_output_point else []
-                target_water_positions = [IndexedPosition(x=pos.x, y=pos.y, type="water") for pos in target.connection_points]
+                target_steam_positions = self._indexed_position([target.steam_output_point], "steam")
+                target_water_positions = self._indexed_position(target.connection_points, "water")
                 target_positions = target_steam_positions + target_water_positions
             case Generator():
-                target_positions = [IndexedPosition(x=pos.x, y=pos.y, type="steam") for pos in target.connection_points]
+                target_positions = self._indexed_position(target.connection_points, "steam")
             case MultiFluidHandler():
                 target_positions = target.input_connection_points
             case FluidHandler():
-                target_positions = [IndexedPosition(x=pos.x, y=pos.y, type="") for pos in target.connection_points]
+                target_positions = self._indexed_position(target.connection_points, "")
             case Pipe():
                 target_positions = self.get_pipe_connection_positions(target, set(), "")
             case Position():
-                target_positions = [IndexedPosition(x=target.x, y=target.y, type="")]
+                target_positions = self._indexed_position([target], "")
 
             case Entity():
-                target_positions = [IndexedPosition(x=target.position.x, y=target.position.y, type="")]
+                target_positions = self._indexed_position([target.position], "")
             case PipeGroup():
                 pipes = [pipe for pipe in target.pipes if pipe.prototype == Prototype.Pipe]
                 target_positions = []

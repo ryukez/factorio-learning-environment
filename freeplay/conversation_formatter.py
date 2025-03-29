@@ -116,9 +116,18 @@ class ConversationFormatter(ConversationFormatter):
 {self.instruction}
 
 ## Existing Entities on Map
+Here is a list of existing entities on the map.
+If there are issues with existing entities, you should try to fix them, by supplying missing resources, repairing broken connections, or removing unnecessary entities.
+Note that you don't need to care about "Chest is full". Chests are entities to store items, and they can be full.
+You should consider making use of items in the inventories of entities, before crafting or harvesting new items.
+
 {entity_summary}
 
 ## Your Inventory
+Here is a list of entities in your inventory.
+Note that  you can only place entities that are in your inventory. If you don't have any entities in your inventory, you need to get them first by crafting, harvesting or smelting etc.
+Make sure to keep at least free 20 slots in your inventory, otherwise you will not be able to pick up or craft new items.
+
 {current_inventory}
 
 ## Important Notes
@@ -127,7 +136,6 @@ class ConversationFormatter(ConversationFormatter):
 - Maintain working systems, and clear entities that aren't working or don't have a clear purpose
 - Build incrementally and verify each step
 - DON'T REPEAT YOUR PREVIOUS STEPS - just continue from where you left off. Take into account what was the last action that was executed and continue from there. If there was a error previously, do not repeat your last lines - as this will alter the game state unnecessarily.
-- Always keep at least free 20 slots in your inventory, otherwise you will not be able to pick up or craft new items.
 
 Remember that your python code must be always enclosed with ```python ... ``` decorator. It's very import for parsing your code. It you can't, you will be fired.
 

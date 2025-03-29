@@ -318,7 +318,7 @@ class BasicAgent(AgentABC):
         super().__init__(model, instructions, *args, **kwargs)
         self.llm_factory = LLMFactory(model)
         self.formatter = ConversationFormatter(instructions)
-        self.generation_params = GenerationParameters(n=1, max_tokens=2048, model=model)
+        self.generation_params = GenerationParameters(n=1, max_tokens=8192, model=model)
 
     async def start_iteration(
         self,
@@ -348,29 +348,33 @@ class BasicAgent(AgentABC):
 
         iteration_summary = ""
         if iteration_messages:
-            iteration_summary_response = await self.llm_factory.acall(
-                messages=[
-                    {
-                        "role": "user",
-                        "content": iteration_summary_prompt(
-                            instruction,
-                            current_entities,
-                            current_inventory,
-                            "\n".join(
-                                [
-                                    f"role: {m.role}\ncontent: {m.content}\n"
-                                    for m in iteration_messages
-                                ]
+            try:
+                iteration_summary_response = await self.llm_factory.acall(
+                    messages=[
+                        {
+                            "role": "user",
+                            "content": iteration_summary_prompt(
+                                instruction,
+                                current_entities,
+                                current_inventory,
+                                "\n".join(
+                                    [
+                                        f"role: {m.role}\ncontent: {m.content}\n"
+                                        for m in iteration_messages
+                                    ]
+                                ),
                             ),
-                        ),
-                    }
-                ],
-                n_samples=1,  # We only need one program per iteration
-                temperature=self.generation_params.temperature,
-                max_tokens=2048,  # use longer max_tokens
-                model=self.generation_params.model,
-            )
-            iteration_summary = iteration_summary_response.choices[0].message.content
+                        }
+                    ],
+                    n_samples=1,  # We only need one program per iteration
+                    temperature=self.generation_params.temperature,
+                    max_tokens=2048,  # use longer max_tokens
+                    model=self.generation_params.model,
+                )
+                iteration_summary = iteration_summary_response.choices[0].message.content
+            except Exception as e:
+                logging.error(f"Failed to generate iteration summary: {e}")
+                iteration_summary = ""
 
         return (
             # entity_summary,
@@ -385,20 +389,25 @@ class BasicAgent(AgentABC):
         entities: str,
         inventory: str,
     ) -> Policy:
-        entity_summary_response = await self.llm_factory.acall(
-            messages=[
-                {
-                    "role": "user",
-                    "content": entity_summary_prompt(entities),
-                }
-            ],
-            n_samples=1,  # We only need one program per iteration
-            temperature=self.generation_params.temperature,
-            max_tokens=16384,  # use longer max_tokens
-            model=self.generation_params.model,
-        )
-        entity_summary = entity_summary_response.choices[0].message.content
-        print(entity_summary)
+        entity_summary = entities
+        for i in range(3):
+            try:
+                entity_summary_response = await self.llm_factory.acall(
+                    messages=[
+                        {
+                            "role": "user",
+                            "content": entity_summary_prompt(entities),
+                        }
+                    ],
+                    n_samples=1,  # We only need one program per iteration
+                    temperature=self.generation_params.temperature,
+                    max_tokens=16384,  # use longer max_tokens
+                    model=self.generation_params.model,
+                )
+                entity_summary = entity_summary_response.choices[0].message.content
+                break
+            except Exception as e:
+                logging.error(f"Failed to generate entity summary: {e}")
 
         # We format the conversation every N steps to add a context summary to the system prompt
         formatted_conversation = await self.formatter.format_conversation(
