@@ -10,7 +10,7 @@ from entities import Entity, EntityGroup
 from instance import FactorioInstance
 from utils.profits import get_achievements
 from models.conversation import Conversation
-from definitions import Evaluation, ParsedGameState
+from trainer.definitions import Evaluation, ParsedGameState
 
 
 class SimpleFactorioEvaluator:

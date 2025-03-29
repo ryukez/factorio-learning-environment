@@ -3,7 +3,7 @@ from dotenv import load_dotenv
 import json
 from env.src.models.game_state import GameState
 from env.src.instance import FactorioInstance
-from definitions import (
+from trainer.definitions import (
     Step,
     Agent,
     Execution,

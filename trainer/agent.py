@@ -1,14 +1,8 @@
-from abc import ABC, abstractmethod
-from env.src.models.game_state import GameState
 from typing import List
-from definitions import Step, Execution, AgentOutput, Agent
+from trainer.definitions import Step, Execution, AgentOutput, Agent
 
 # Copied from agents/basic_agent.py
 import tenacity
-import json
-
-from agents import Response, CompletionResult, Policy
-from agents.agent_abc import AgentABC
 from agents.utils.llm_factory import LLMFactory
 from agents.utils.parse_response import parse_response
 from models.conversation import Conversation
@@ -16,15 +10,11 @@ from models.generation_parameters import GenerationParameters
 from tenacity import (
     wait_exponential,
     retry_if_exception_type,
-    wait_random_exponential,
     stop_after_attempt,
 )
-from freeplay.recursive_report_formatter import RecursiveReportFormatter
 import logging
-from definitions import Message, ParsedGameState
+from trainer.definitions import Message, ParsedGameState
 
-from namespace import FactorioNamespace
-from freeplay.conversation_formatter import ConversationFormatter
 
 GENERAL_INSTRUCTIONS = """
 # Factorio LLM Agent Instructions

@@ -67,7 +67,16 @@ def execution_history_from_conversation(conversation: Conversation) -> List[Exec
 
         history.append(
             Execution(
-                step=None,
+                step=Step(
+                    number=(i - 1) // 2 + 1,
+                    instruction=conversation.messages[i].metadata.get(
+                        "instruction", ""
+                    ),
+                    iteration_number=conversation.messages[i].metadata.get(
+                        "iteration", 0
+                    ),
+                    in_iteration_number=0,
+                ),
                 game_state=None,
                 agent_output=AgentOutput(
                     input_messages=[],

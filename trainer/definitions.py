@@ -78,7 +78,7 @@ class Evaluation:
             "response": self.response,
             "reward": self.reward,
             "achievements": self.achievements,
-            "flows": self.flows.to_dict(),
+            "flows": self.flows.to_dict() if self.flows else None,
             "ticks": self.ticks,
         }
 
@@ -87,7 +87,7 @@ class Evaluation:
             "response": self.response,
             "reward": self.reward,
             "achievements": self.achievements,
-            "flows": self.flows.to_dict(),
+            "flows": self.flows.to_dict() if self.flows else None,
             "ticks": self.ticks,
         }
 
