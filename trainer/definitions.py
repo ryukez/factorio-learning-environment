@@ -166,9 +166,6 @@ class Evaluation:
 
 Achievements:
 {self.achievements}
-
-Flows:
-{self.flows}
 """
 
 
