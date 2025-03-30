@@ -265,7 +265,7 @@ class TrajectoryRunner:
                         update_spreadsheet_cell(
                             os.getenv("SPREADSHEET_ID"),
                             f"Steps!J{step_row_number}",
-                            evaluation.response,
+                            evaluation.formatted(),
                         )
 
                     execution = Execution(
