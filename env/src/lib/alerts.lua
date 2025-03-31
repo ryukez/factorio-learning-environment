@@ -322,9 +322,9 @@ function get_issues(entity)
             -- else
             --     table.insert(issues, "\'output blocked by item on the ground. There is no sink entity in place to accept the output.\'")
             -- end
-            if not destination_entity then
-                table.insert(issues, "\'output blocked by item on the ground. There is no sink entity in place to accept the output.\'")
-            end
+            -- if not destination_entity then
+            --     table.insert(issues, "\'output blocked by item on the ground. There is no sink entity in place to accept the output.\'")
+            -- end
         else
             table.insert(issues, "\'waiting for space in destination\'")
         end

@@ -192,6 +192,7 @@ You are a report generating model for the game factorio.
 Given existing entities, you must summarise what structures the agent has created on the map and what are the use-cases of those structures. You must also bring out the entities and positions of entities of each of those structures.
 Focus on the structures themselves. If multiple sections are connected, summarise them as one structure.
 Do not bring out entities separately, create sections like 
+
 ###Electricity generator at position(x)
 Consists of steam engine(position x), boiler(position y) and offshore pump (position z)
 Role:
@@ -199,6 +200,7 @@ Role:
 Issues:
 - It is working as expected
 - However, the fuel supply is not automated. We need to automate the coal supply to the boiler occasionally.
+
 ###Copper plate mine at position(x)
 Consists of following entities
 -  Burner mining drill (position x1) and a furnace at position(y1)
@@ -208,6 +210,7 @@ Role:
 - Mines copper ore and smelts it into copper plates
 Issues:
 - The burner mining drill at position x3 is not working due to lack of fuel. We need to supply coal to it.
+
 ###Copper cable factory
 Consists of following entities
 -  Burner mining drill (position x1) and a furnace at position(y1)
@@ -217,9 +220,12 @@ Role:
 - Produces copper cables from copper plates
 Issues:
 - No issues. It is working as expected.
+
 Output the summary only, do not include any other information.
 [Input]
 {entities}
+
+[Output]
 """
 
 
@@ -343,15 +349,36 @@ class IterationAgent(Agent):
         game_state: ParsedGameState,
         execution_history: List[Execution],
     ) -> AgentOutput:
-        messages = self._format_messages(step, game_state, execution_history)
+        messages = await self._format_messages(step, game_state, execution_history)
         return await self._get_policy(messages)
 
-    def _format_messages(
+    @tenacity.retry(
+        retry=retry_if_exception_type(Exception),
+        wait=wait_exponential(multiplier=1, min=4, max=10),
+        before_sleep=my_before_sleep,
+        stop=stop_after_attempt(3),
+    )
+    async def _format_messages(
         self,
         step: Step,
         game_state: ParsedGameState,
         execution_history: List[Execution],
     ) -> List[Message]:
+        # entity_summary_response = await self.llm_factory.acall(
+        #     messages=[
+        #         {
+        #             "role": "user",
+        #             "content": entity_summary_prompt(game_state.entities),
+        #         }
+        #     ],
+        #     n_samples=1,  # We only need one program per iteration
+        #     temperature=self.generation_params.temperature,
+        #     max_tokens=2048,  # use longer max_tokens
+        #     model=self.generation_params.model,
+        # )
+        # entity_summary = entity_summary_response.choices[0].message.content
+        # print(entity_summary)
+
         iteration_messages: List[Message] = []
         for execution in execution_history:
             if execution.step.iteration_number == step.iteration_number:
@@ -389,7 +416,6 @@ class IterationAgent(Agent):
 ## Existing Entities on Map
 Here is a list of existing entities on the map.
 If there are issues with existing entities, you should try to fix them, by supplying missing resources, repairing broken connections, or removing unnecessary entities.
-Note that you don't need to care about "Chest is full". Chests are entities to store items, and they can be full.
 You should consider making use of items in the inventories of entities, before crafting or harvesting new items.
 
 {game_state.entities}
