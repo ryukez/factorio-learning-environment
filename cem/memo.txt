@@ -1,0 +1,19 @@
+貪欲最大最小類似度
+
+Total data points: 1350
+Generated embeddings for code examples.
+Calculated cosine similarity matrix.
+Selected diverse code examples
+Calculating average similarity of selected pairs...
+Average similarity of selected pairs: 0.6392
+Min similarity of selected pairs: 0.2374
+
+ナイーブ
+
+Total data points: 1350
+Generated embeddings for code examples.
+Calculated cosine similarity matrix.
+Selected diverse code examples
+Calculating average similarity of selected pairs...
+Average similarity of selected pairs: 0.5801
+Min similarity of selected pairs: 0.1092

@@ -171,6 +171,10 @@ Achievements:
 
 line_number_pattern = re.compile(r"^(\d+): \(")
 
+command_pattern = re.compile(
+    r"(can_place_entity|connect_entities|craft_item|extract_item|get_connection_amount|get_entities|get_entity|get_prototype_recipe|get_research_progress|get_resource_patch|harvet_resource|insert_item|inspect_inventory|launch_rocket|move_to|nearest|nearest_buildable|pickup_entity|place_entity|place_entity_next_to|rorate_entity|set_entity_recipe|set_research|shift_entity)\(.*\)"
+)
+
 
 @dataclass
 class Execution:
@@ -193,9 +197,7 @@ class Execution:
             evaluation=Evaluation.from_dict(data["evaluation"]),
         )
 
-    def passed_code(self) -> str:
-        lines = self.agent_output.code.split("\n")
-
+    def _error_line_number(self) -> int:
         eval_lines = self.evaluation.response.split("\n")
 
         error_line_number = None
@@ -206,11 +208,31 @@ class Execution:
                     error_line_number = int(line_number.group(1))
                     break
 
+        return error_line_number
+
+    def passed_code(self) -> str:
+        error_line_number = self._error_line_number()
+
+        lines = self.agent_output.code.split("\n")
         pass_line_number = (
             len(lines) if error_line_number is None else error_line_number
         )
 
         return "\n".join(lines[:pass_line_number])
+
+    def executed_commands(self) -> List[str]:
+        passed_code = self.passed_code().split("\n")
+        commands: List[str] = []
+
+        error_line_number = self._error_line_number()
+        line_num = (
+            error_line_number - 1 if error_line_number else len(passed_code)
+        )  # last line is not included
+
+        for _, line in enumerate(passed_code[:line_num]):
+            if command_pattern.search(line):
+                commands.append(line)
+        return commands
 
 
 class Agent(ABC):
@@ -252,6 +274,24 @@ class DataPoint:
             "evaluation": self.evaluation.to_dict(),
             "evaluated_game_state": self.evaluated_game_state.to_dict(),
         }
+
+    @classmethod
+    def from_dict(cls, data):
+        return cls(
+            runtime_version=data["runtime_version"],
+            collection_id=data["collection_id"],
+            step=Step.from_dict(data["step"]),
+            execution_history=[
+                Execution.from_dict(e) for e in data["execution_history"]
+            ],
+            input_game_state=ParsedGameState.from_dict(data["input_game_state"]),
+            agent_name=data["agent_name"],
+            agent_output=AgentOutput.from_dict(data["agent_output"]),
+            evaluation=Evaluation.from_dict(data["evaluation"]),
+            evaluated_game_state=ParsedGameState.from_dict(
+                data["evaluated_game_state"]
+            ),
+        )
 
 
 def create_data_point(
