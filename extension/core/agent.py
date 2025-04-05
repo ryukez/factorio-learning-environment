@@ -1,11 +1,9 @@
 from typing import List
-from trainer.definitions import Step, Execution, AgentOutput, Agent
 
 # Copied from agents/basic_agent.py
 import tenacity
 from agents.utils.llm_factory import LLMFactory
 from agents.utils.parse_response import parse_response
-from models.conversation import Conversation
 from models.generation_parameters import GenerationParameters
 from tenacity import (
     wait_exponential,
@@ -13,7 +11,14 @@ from tenacity import (
     stop_after_attempt,
 )
 import logging
-from trainer.definitions import Message, ParsedGameState
+from extension.core.definitions import (
+    Message,
+    ParsedGameState,
+    Step,
+    Execution,
+    AgentOutput,
+    Agent,
+)
 
 
 GENERAL_INSTRUCTIONS = """
@@ -364,6 +369,7 @@ class IterationAgent(Agent):
         game_state: ParsedGameState,
         execution_history: List[Execution],
     ) -> List[Message]:
+        # NOTE(@ryunosuke): May be useful when number of entities incresed?
         # entity_summary_response = await self.llm_factory.acall(
         #     messages=[
         #         {

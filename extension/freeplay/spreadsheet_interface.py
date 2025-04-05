@@ -1,8 +1,9 @@
+import time
+from extension.freeplay.human_interface import HumanInterface
 from google.oauth2.credentials import Credentials
-from google.oauth2.service_account import Credentials
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
-import time
+from extension.freeplay.human_interface import InputKey, OutputKey
 
 
 def get_spreadsheet_values(spreadsheet_id, range_name, max_retries=3):
@@ -168,3 +169,91 @@ def insert_to_spreadsheet(spreadsheet_id, range_name, values, max_retries=3):
             else:
                 print("最大リトライ回数に達しました。")
                 return None, None
+
+
+# 実行結果の出力や指示の入力をスプレッドシートを使って行う
+# https://docs.google.com/spreadsheets/d/11Y-tE6hSS81UxZ6mSck1t5ahDEs2xd9es-JH4HGYplk/edit?usp=sharing
+class SpreadsheetHumanInterface(HumanInterface):
+    """スプレッドシートを使用した人間とのインターフェース"""
+
+    def __init__(self, spreadsheet_id: str):
+        self.spreadsheet_id = spreadsheet_id
+
+    async def input(self, key: InputKey, context) -> str:
+        """スプレッドシートから指示を取得する"""
+        cell = ""
+        if key == InputKey.INSTRUCTION:
+            cell = "Input!E2:E3"
+            iteration_number = context["iteration_number"]
+
+        while True:
+            try:
+                user_input = get_spreadsheet_values(self.spreadsheet_id, cell)
+                print(f"User input: {user_input}, iteration: {iteration_number}")
+                if user_input and int(user_input[0][0]) == iteration_number:
+                    return user_input[1][0]
+            except Exception as e:
+                print(f"Error in getting instruction: {e}")
+
+            time.sleep(60)
+
+    async def output(self, key: OutputKey, data):
+        if key == OutputKey.UPDATE_SYSTEM_STATUS:
+            update_spreadsheet_cell(
+                self.spreadsheet_id,
+                "System!B1",
+                data["status"],
+            )
+
+        if key == OutputKey.INSERT_ITERATION_DATA:
+            _, row_number = insert_to_spreadsheet(
+                self.spreadsheet_id,
+                "Iterations!A1:Z",
+                [
+                    [
+                        data["version"],
+                        data["model"],
+                        data["iteration_number"],
+                        data["instruction"],
+                        data["entities"],
+                        data["inventory"],
+                    ],
+                ],
+            )
+
+            self.iteration_row_number = row_number
+
+        if key == OutputKey.INSERT_STEP_DATA:
+            _, row_number = insert_to_spreadsheet(
+                self.spreadsheet_id,
+                "Steps!A1:Z",
+                [
+                    [
+                        data["version"],
+                        data["model"],
+                        data["iteration_number"],
+                        data["in_iteration_number"],
+                        data["step_number"],
+                        data["entities"],
+                        data["inventory"],
+                        data["thinking"],
+                        data["code"],
+                    ],
+                ],
+            )
+
+            self.step_row_number = row_number
+
+        if key == OutputKey.UPDATE_STEP_EVALUATION:
+            update_spreadsheet_cell(
+                self.spreadsheet_id,
+                f"Steps!J{self.step_row_number}",
+                data["evaluation"],
+            )
+
+        if key == OutputKey.UPDATE_ITERATION_SUMMARY:
+            update_spreadsheet_cell(
+                self.spreadsheet_id,
+                f"Iterations!G{self.iteration_row_number}",
+                data["summary"],
+            )

@@ -1,6 +1,6 @@
 import json
 import numpy as np
-from trainer.definitions import DataPoint, Step, Execution
+from extension.core.definitions import DataPoint, Step, Execution
 import openai
 from openai import OpenAI
 from typing import List

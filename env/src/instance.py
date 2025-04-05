@@ -355,16 +355,18 @@ class FactorioInstance:
         def handler(signum, frame):
             raise TimeoutError()
 
-        # signal.signal(signal.SIGALRM, handler)
-        # signal.alarm(timeout)
-        alarm = threading.Timer(timeout, handler)
-        alarm.start()
+        signal.signal(signal.SIGALRM, handler)
+        signal.alarm(timeout)
+        ## For Windows
+        # alarm = threading.Timer(timeout, handler)
+        # alarm.start()
 
         try:
             return self.namespace.eval_with_timeout(expr)
         finally:
-            # signal.alarm(0)
-            alarm.cancel()
+            signal.alarm(0)
+            ## For Windows
+            # alarm.cancel()
 
     def eval(self, expr, timeout=60):
         "Evaluate several lines of input, returning the result of the last line with a timeout"

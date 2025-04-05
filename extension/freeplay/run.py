@@ -1,14 +1,11 @@
 # Copied from eval/open/independent_runs/run.py
 import argparse
-import multiprocessing
 from dotenv import load_dotenv
-from freeplay.trajectory_runner import (
+from extension.freeplay.trajectory_runner import (
     run_process,
-    create_factorio_instance,
     PlayConfig,
 )
 from eval.tasks.task_factory import TaskFactory
-from eval.tasks.task_abc import TaskABC
 from pathlib import Path
 import json
 
@@ -29,18 +26,9 @@ def main():
     with open(run_config_location, "r") as f:
         run_configs = json.load(f)
 
-    version_offset = 0
-    # Get starting version number for new runs
-    base_version = 1
-
     run_config = run_configs[0]
-
     task = TaskFactory.create_task(run_config["task"])
-    if "version" in run_config:
-        version = run_config["version"]
-    else:
-        version = base_version + version_offset
-        version_offset += 1
+    version = run_config["version"]
 
     config = PlayConfig(
         task=task,

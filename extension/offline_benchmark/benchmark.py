@@ -1,5 +1,5 @@
 import json
-from trainer.definitions import DataPoint, Step, Execution
+from extension.core.definitions import DataPoint, Step, Execution
 import math
 import random
 
