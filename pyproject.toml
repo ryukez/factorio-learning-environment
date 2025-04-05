@@ -20,6 +20,7 @@ dependencies = [
     "psycopg2-binary>=2.9.10",
     "google-api-python-client>=2.164.0",
     "google-auth>=2.38.0",
+    "rich>=14.0.0",
 ]
 
 [build-system]

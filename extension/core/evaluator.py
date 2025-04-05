@@ -1,16 +1,13 @@
 # Copied from eval/open/independent_runs/simple_evaluator.py
 import asyncio
-import copy
 from typing import List, Tuple, Union, Dict
 
 from models.achievements import ProductionFlows
 from models.game_state import GameState
-from models.program import Program
 from entities import Entity, EntityGroup
 from instance import FactorioInstance
 from utils.profits import get_achievements
-from models.conversation import Conversation
-from trainer.definitions import Evaluation, ParsedGameState
+from extension.core.definitions import Evaluation, ParsedGameState
 
 
 class SimpleFactorioEvaluator:
@@ -152,8 +149,6 @@ class SimpleFactorioEvaluator:
             return final_reward, state, result, entities, achievements, flows, ticks
 
         except Exception as e:
-            print(f"Error in _evaluate_single:")
-
             print(f"Error: {str(e)}")
             import traceback
 

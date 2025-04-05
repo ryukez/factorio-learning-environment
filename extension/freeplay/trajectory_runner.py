@@ -6,31 +6,26 @@ import multiprocessing
 from dotenv import load_dotenv
 
 from instance import FactorioInstance
-from trainer.agent import IterationAgent
-from trainer.definitions import (
+from extension.core.agent import IterationAgent
+from extension.core.definitions import (
     Step,
     Execution,
     ParsedGameState,
     AgentOutput,
-    Evaluation,
-    DataPoint,
     create_data_point,
-    format_inventory,
 )
-from trainer.evaluator import SimpleFactorioEvaluator
-from trainer.db import SQLliteDBClient
+from extension.core.evaluator import SimpleFactorioEvaluator
+from extension.core.db import SQLliteDBClient
 
 from eval.tasks.task_abc import TaskABC
 import os
-import json
 from typing import List
-from spreadsheet import (
-    insert_to_spreadsheet,
-    get_spreadsheet_values,
-    update_spreadsheet_cell,
+from extension.freeplay.human_interface import (
+    HumanInterface,
 )
-from models.game_state import GameState
-from agents import Policy
+from extension.freeplay.spreadsheet_interface import SpreadsheetHumanInterface
+from extension.freeplay.cli_interface import CLIHumanInterface
+from extension.freeplay.human_interface import InputKey, OutputKey
 
 load_dotenv()
 
@@ -56,11 +51,13 @@ class TrajectoryRunner:
         agent: IterationAgent,
         evaluator: SimpleFactorioEvaluator,
         config: PlayConfig,
+        human_interface: HumanInterface,
     ):
         self.agent = agent
         self.evaluator = evaluator
         self.config = config
         self.iteration_times = []
+        self.human_interface = human_interface
 
         self.db = SQLliteDBClient(
             min_connections=2,
@@ -110,13 +107,6 @@ class TrajectoryRunner:
                 instance = self.evaluator.instance
                 instance.reset(game_state.raw)
 
-        # offshore_pump = instance.namespace.get_entity(Prototype.OffshorePump, Position(x=-7.5, y=-27.5))
-        # boiler = instance.namespace.get_entity(Prototype.Boiler, Position(x=-6.5, y=-24.0))
-
-        # print(instance.namespace.connect_entities(offshore_pump, boiler, Prototype.Pipe))
-        # print("lab" in instance.namespace.inspect_inventory().keys())
-        # os.exit(1)
-
         # New game
         if not game_state:
             instance = self.evaluator.instance
@@ -126,7 +116,7 @@ class TrajectoryRunner:
 
             step = Step(
                 number=0,
-                instruction="Harvest Iron Ore",
+                instruction="- Build the biggest possible factory\n- Maximise automation, efficiency and scale",
                 iteration_number=0,
                 in_iteration_number=0,
             )
@@ -139,63 +129,44 @@ class TrajectoryRunner:
         # Run trajectory
         STEPS_PER_ITERATION = 10
 
-        # (previous_iteration_summary,) = await self.agent.report_summary(
-        #     iteration=iteration,
-        #     current_inventory=current_inventory,
-        #     current_entities=current_entities,
-        #     current_conversation=current_conversation,
-        # )
-
         while True:
             step.iteration_number += 1
             print(f"### Iteration {step.iteration_number} ###")
 
-            update_spreadsheet_cell(
-                os.getenv("SPREADSHEET_ID"),
-                "System!B1",
-                f"[Iteration {step.iteration_number}] 指示の入力を待っています...",
+            await self.human_interface.output(
+                OutputKey.UPDATE_SYSTEM_STATUS,
+                {
+                    "status": f"[Iteration {step.iteration_number}] 指示の入力を待っています...",
+                },
             )
 
-            # 1分ごとにスプレッドシートにアクセスし、指示が更新されているかを確認
-            instruction = ""
-            while True:
-                try:
-                    user_input = get_spreadsheet_values(
-                        os.getenv("SPREADSHEET_ID"), "Input!E2:E3"
-                    )
-                    print(
-                        f"User input: {user_input}, iteration: {step.iteration_number}"
-                    )
-                    if user_input and int(user_input[0][0]) == step.iteration_number:
-                        instruction = user_input[1][0]
-                        break
-                except Exception as e:
-                    print(f"Error in getting instruction: {e}")
+            instruction = await self.human_interface.input(
+                InputKey.INSTRUCTION,
+                {
+                    "iteration_number": step.iteration_number,
+                },
+            )
 
-                time.sleep(60)
-
-            update_spreadsheet_cell(
-                os.getenv("SPREADSHEET_ID"),
-                "System!B1",
-                f"[Iteration {step.iteration_number}] LLM実行中...",
+            await self.human_interface.output(
+                OutputKey.UPDATE_SYSTEM_STATUS,
+                {
+                    "status": f"[Iteration {step.iteration_number}] LLM実行中...",
+                },
             )
 
             step.instruction = instruction
 
             # Save results to spreadsheet
-            (_, iteration_row_number) = insert_to_spreadsheet(
-                os.getenv("SPREADSHEET_ID"),
-                "Iterations!A1:Z",
-                [
-                    [
-                        self.config.version,
-                        self.config.model,
-                        step.iteration_number,
-                        instruction,
-                        game_state.entities,
-                        game_state.inventory(),
-                    ],
-                ],
+            iteration_row_number = await self.human_interface.output(
+                OutputKey.INSERT_ITERATION_DATA,
+                {
+                    "version": self.config.version,
+                    "model": self.config.model,
+                    "iteration_number": step.iteration_number,
+                    "instruction": instruction,
+                    "entities": game_state.entities,
+                    "inventory": game_state.inventory(),
+                },
             )
 
             for in_iteration_number in range(STEPS_PER_ITERATION):
@@ -218,22 +189,19 @@ class TrajectoryRunner:
                     )
 
                     # Save results to spreadsheet
-                    (_, step_row_number) = insert_to_spreadsheet(
-                        os.getenv("SPREADSHEET_ID"),
-                        "Steps!A1:Z",
-                        [
-                            [
-                                self.config.version,
-                                self.config.model,
-                                step.iteration_number,
-                                step.in_iteration_number,
-                                step.number,
-                                game_state.entities,
-                                game_state.inventory(),
-                                agent_output.thinking,
-                                agent_output.code,
-                            ]
-                        ],
+                    step_row_number = await self.human_interface.output(
+                        OutputKey.INSERT_STEP_DATA,
+                        {
+                            "version": self.config.version,
+                            "model": self.config.model,
+                            "iteration_number": step.iteration_number,
+                            "in_iteration_number": step.in_iteration_number,
+                            "step_number": step.number,
+                            "entities": game_state.entities,
+                            "inventory": game_state.inventory(),
+                            "thinking": agent_output.thinking,
+                            "code": agent_output.code,
+                        },
                     )
 
                     # Evaluate program
@@ -262,10 +230,12 @@ class TrajectoryRunner:
                     )
 
                     if step_row_number:
-                        update_spreadsheet_cell(
-                            os.getenv("SPREADSHEET_ID"),
-                            f"Steps!J{step_row_number}",
-                            evaluation.formatted(),
+                        await self.human_interface.output(
+                            OutputKey.UPDATE_STEP_EVALUATION,
+                            {
+                                "step_row_number": step_row_number,
+                                "evaluation": evaluation.formatted(),
+                            },
                         )
 
                     execution = Execution(
@@ -283,12 +253,6 @@ class TrajectoryRunner:
                         execution_history=execution_history,
                         evaluated_game_state=evaluated_game_state,
                     )
-
-                    with open("execution.json", "w") as f:
-                        json.dump(
-                            data_point.to_dict(),
-                            f,
-                        )
 
                     await self.db.create_data_point(data_point)
 
@@ -308,10 +272,12 @@ class TrajectoryRunner:
             )
 
             if iteration_row_number:
-                update_spreadsheet_cell(
-                    os.getenv("SPREADSHEET_ID"),
-                    f"Iterations!G{iteration_row_number}",
-                    previous_iteration_summary,
+                await self.human_interface.output(
+                    OutputKey.UPDATE_ITERATION_SUMMARY,
+                    {
+                        "iteration_row_number": iteration_row_number,
+                        "previous_iteration_summary": previous_iteration_summary,
+                    },
                 )
 
             elapsed = time.time() - self.start_time
@@ -361,7 +327,14 @@ async def run_trajectory(process_id: int, config: PlayConfig):
     # setup the instance
     task = config.task
     task.setup(instance)
-    runner = TrajectoryRunner(agent, evaluator, config)
+
+    # Create human interface based on environment
+    if os.getenv("SPREADSHEET_ID"):
+        human_interface = SpreadsheetHumanInterface(os.getenv("SPREADSHEET_ID"))
+    else:
+        human_interface = CLIHumanInterface()
+
+    runner = TrajectoryRunner(agent, evaluator, config, human_interface)
     await runner.run()
 
 

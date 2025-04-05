@@ -1,8 +1,8 @@
 [
   {
     "task": "open_play.json",
-    "version": "20240328002",
+    "version": "20240330006",
     "model": "open-router-google/gemini-2.0-flash-001",
-    "runtime_version": "test"
+    "runtime_version": "f923451"
   }
 ]

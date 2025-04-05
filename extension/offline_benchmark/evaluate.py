@@ -3,7 +3,7 @@ from dotenv import load_dotenv
 import json
 from env.src.models.game_state import GameState
 from env.src.instance import FactorioInstance
-from trainer.definitions import (
+from extension.core.definitions import (
     Step,
     Agent,
     Execution,
@@ -14,8 +14,8 @@ from trainer.definitions import (
     DataPoint,
     create_data_point,
 )
-from trainer.agent import IterationAgent
-from trainer.evaluator import SimpleFactorioEvaluator
+from core.agent import IterationAgent
+from core.evaluator import SimpleFactorioEvaluator
 import asyncio
 from typing import List
 from dataclasses import dataclass

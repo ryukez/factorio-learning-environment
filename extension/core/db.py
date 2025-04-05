@@ -4,11 +4,10 @@ import threading
 from contextlib import contextmanager
 import sqlite3
 import tenacity
-from tenacity import wait_exponential, retry_if_exception_type, wait_random_exponential
-from trainer.definitions import DataPoint
+from tenacity import retry_if_exception_type, wait_random_exponential
 import json
 from typing import Optional, List
-from trainer.definitions import ParsedGameState, Execution, Step, Evaluation
+from extension.core.definitions import ParsedGameState, Execution, Step, DataPoint
 
 
 class SQLliteDBClient:

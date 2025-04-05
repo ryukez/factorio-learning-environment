@@ -197,6 +197,7 @@ class Execution:
             evaluation=Evaluation.from_dict(data["evaluation"]),
         )
 
+    # get the line number where error occurred
     def _error_line_number(self) -> int:
         eval_lines = self.evaluation.response.split("\n")
 
@@ -210,6 +211,7 @@ class Execution:
 
         return error_line_number
 
+    # extract code lines executed during evaluation (including error line)
     def passed_code(self) -> str:
         error_line_number = self._error_line_number()
 
@@ -220,6 +222,7 @@ class Execution:
 
         return "\n".join(lines[:pass_line_number])
 
+    # Calc number of commands successfully executed
     def executed_commands(self) -> List[str]:
         passed_code = self.passed_code().split("\n")
         commands: List[str] = []
