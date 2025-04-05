@@ -4,7 +4,8 @@ import math
 import random
 
 data_points = []
-with open("outputs/gemma-14b.jsonl", "r") as f:
+with open("outputs/20250401_100/deepseek-v3.jsonl", "r") as f:
+    # with open("datasets/20250401_100.jsonl", "r") as f:
     # with open("datasets/claude37_100.jsonl", "r") as f:
     # with open("datasets/sample.jsonl", "r") as f:
     # with open("outputs/claude37_100-gemini-20-flash.jsonl", "r") as f:

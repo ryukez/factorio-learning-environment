@@ -24,9 +24,9 @@ import copy
 
 @dataclass
 class StepExecution:
-    agent_output: AgentOutput
-    evaluation: Evaluation
-    evaluated_game_state: ParsedGameState
+    agent_output: AgentOutput | None
+    evaluation: Evaluation | None
+    evaluated_game_state: ParsedGameState | None
 
 
 def create_factorio_instance():
@@ -53,9 +53,9 @@ async def execute_step(
     game_state: ParsedGameState,
     execution_history: List[Execution],
 ) -> StepExecution:
-    evaluator.instance.reset(game_state.raw)
     agent_output = await agent.run(step, game_state, execution_history)
     evaluated_game_state, evaluator_output = await evaluator.evaluate(agent_output.code)
+
     return StepExecution(
         agent_output=agent_output,
         evaluation=evaluator_output,
@@ -67,13 +67,13 @@ async def main():
     instance = create_factorio_instance()
 
     agent = IterationAgent(
-        model="open-router-google/gemma-3-27b-it",
+        model="open-router-google/gemini-2.5-pro-preview-03-25",
         system_prompt=instance.get_system_prompt(),
     )
     evaluator = SimpleFactorioEvaluator(instance)
 
     data_points: List[DataPoint] = []
-    with open("datasets/claude37_100.jsonl", "r") as f:
+    with open("datasets/20250401_100.jsonl", "r") as f:
         for line in f:
             data_points.append(DataPoint.from_dict(json.loads(line)))
 
