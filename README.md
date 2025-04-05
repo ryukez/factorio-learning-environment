@@ -24,7 +24,7 @@ cd extension && docker compose up
 3. SQLite のセットアップ
 
 エージェントの実行を記録するためのデータベースのセットアップが必要です。
-[sqlite3](https://www.sqlite.org/download.html) をインストールし、extension のディレクトリで以下を実行します。
+[sqlite3](https://www.sqlite.org/download.html) をインストールし、`extension/` で以下を実行します。
 
 ```sh
 sqlite3 mydatabase.db < create_table.sql
@@ -55,10 +55,12 @@ sqlite3 mydatabase.db < create_table.sql
 
 ```sh
 # ライブラリのインストール
-uv venv && uv sync && .venv/bin/activate
+uv venv && source .venv/bin/activate && uv sync
 
-cd extension && python trajectory_runner.py --run_config configs/run_config.json
+python extension/freeplay/run.py --run_config extension/freeplay/configs/run_config.json
 ```
+
+ゲームクライアントでログインしているのに `Player hasn't been initialised into the game. Please log in once to make this node operational.` というエラーが出た場合は、もう一度実行すると直ります。
 
 イテレーションの開始ごとに指示を入力してください（例：発電所を建設する、鉄板の生産を自動化する、太陽光発電の研究を完了させる）。
 入力するとイテレーションの実行が開始され、既定ステップを繰り返すとまた指示の待機待ちになります。
@@ -101,3 +103,93 @@ evaluator は agent の出力コードを実際に実行する他、一定時間
 extension の実行に必要な処理の大半は extension の中にまとまっています。
 その他 GameState や FactorioInstance、Entity といったコアなクラスのみをオリジナル実装から参照しています。
 offline_benchmark はオフラインのリプレイをもとにモデルの評価を行うためのパッケージです（開発中）。
+
+### マップ
+
+`ryunosukez/factorio-learning-environment:v0.1.0` のマップは以下の設定で作成されています。
+
+- water 多め (1->2)
+- enemy-base 以外の資源について richness を 10 倍
+- ウラニウム鉱石と石油の発生頻度を 50 倍
+- 崖なし
+
+```
+{
+  "_terrain_segmentation_comment": "The inverse of 'water scale' in the map generator GUI.",
+  "terrain_segmentation": 1,
+
+  "_water_comment":
+  [
+    "The equivalent to 'water coverage' in the map generator GUI. Higher coverage means more water in larger oceans.",
+    "Water level = 10 * log2(this value)"
+  ],
+  "water": 2,
+
+  "_comment_width+height": "Width and height of map, in tiles; 0 means infinite",
+  "width": 0,
+  "height": 0,
+
+  "_starting_area_comment": "Multiplier for 'biter free zone radius'",
+  "starting_area": 1,
+
+  "peaceful_mode": false,
+  "autoplace_controls":
+  {
+    "coal": {"frequency": 1, "size": 1, "richness": 10},
+    "stone": {"frequency": 1, "size": 1, "richness": 10},
+    "copper-ore": {"frequency": 1, "size": 1,"richness": 10},
+    "iron-ore": {"frequency": 1, "size": 1, "richness": 10},
+    "uranium-ore": {"frequency": 50, "size": 1, "richness": 10},
+    "crude-oil": {"frequency": 50, "size": 1, "richness": 10},
+    "trees": {"frequency": 1, "size": 1, "richness": 10},
+    "enemy-base": {"frequency": 1, "size": 1, "richness": 1}
+  },
+
+  "cliff_settings":
+  {
+    "_name_comment": "Name of the cliff prototype",
+    "name": "cliff",
+
+    "_cliff_elevation_0_comment": "Elevation of first row of cliffs",
+    "cliff_elevation_0": 10,
+
+    "_cliff_elevation_interval_comment":
+    [
+      "Elevation difference between successive rows of cliffs.",
+      "This is inversely proportional to 'frequency' in the map generation GUI. Specifically, when set from the GUI the value is 40 / frequency."
+    ],
+    "cliff_elevation_interval": 40,
+
+    "_richness_comment": "Called 'cliff continuity' in the map generator GUI. 0 will result in no cliffs, 10 will make all cliff rows completely solid",
+    "richness": 0
+  },
+
+  "_property_expression_names_comment":
+  [
+    "Overrides for property value generators (map type)",
+    "Leave 'elevation' blank to get 'normal' terrain.",
+    "Use 'elevation': '0_16-elevation' to reproduce terrain from 0.16.",
+    "Use 'elevation': '0_17-island' to get an island.",
+    "Moisture and terrain type are also controlled via this.",
+    "'control-setting:moisture:frequency:multiplier' is the inverse of the 'moisture scale' in the map generator GUI.",
+    "'control-setting:moisture:bias' is the 'moisture bias' in the map generator GUI.",
+    "'control-setting:aux:frequency:multiplier' is the inverse of the 'terrain type scale' in the map generator GUI.",
+    "'control-setting:aux:bias' is the 'terrain type bias' in the map generator GUI."
+  ],
+  "property_expression_names":
+  {
+    "control-setting:moisture:frequency:multiplier": "1",
+    "control-setting:moisture:bias": "0",
+    "control-setting:aux:frequency:multiplier": "1",
+    "control-setting:aux:bias": "0"
+  },
+
+  "starting_points":
+  [
+    { "x": 0, "y": 0}
+  ],
+
+  "_seed_comment": "Use null for a random seed, number for a specific seed.",
+  "seed": null
+}
+```

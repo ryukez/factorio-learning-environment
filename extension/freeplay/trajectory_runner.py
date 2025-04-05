@@ -157,7 +157,7 @@ class TrajectoryRunner:
             step.instruction = instruction
 
             # Save results to spreadsheet
-            iteration_row_number = await self.human_interface.output(
+            await self.human_interface.output(
                 OutputKey.INSERT_ITERATION_DATA,
                 {
                     "version": self.config.version,
@@ -189,7 +189,7 @@ class TrajectoryRunner:
                     )
 
                     # Save results to spreadsheet
-                    step_row_number = await self.human_interface.output(
+                    await self.human_interface.output(
                         OutputKey.INSERT_STEP_DATA,
                         {
                             "version": self.config.version,
@@ -229,14 +229,12 @@ class TrajectoryRunner:
                         f"Step {step.iteration_number}-{step.in_iteration_number}"
                     )
 
-                    if step_row_number:
-                        await self.human_interface.output(
-                            OutputKey.UPDATE_STEP_EVALUATION,
-                            {
-                                "step_row_number": step_row_number,
-                                "evaluation": evaluation.formatted(),
-                            },
-                        )
+                    await self.human_interface.output(
+                        OutputKey.UPDATE_STEP_EVALUATION,
+                        {
+                            "evaluation": evaluation.formatted(),
+                        },
+                    )
 
                     execution = Execution(
                         step=step,
@@ -271,14 +269,12 @@ class TrajectoryRunner:
                 execution_history,
             )
 
-            if iteration_row_number:
-                await self.human_interface.output(
-                    OutputKey.UPDATE_ITERATION_SUMMARY,
-                    {
-                        "iteration_row_number": iteration_row_number,
-                        "previous_iteration_summary": previous_iteration_summary,
-                    },
-                )
+            await self.human_interface.output(
+                OutputKey.UPDATE_ITERATION_SUMMARY,
+                {
+                    "previous_iteration_summary": previous_iteration_summary,
+                },
+            )
 
             elapsed = time.time() - self.start_time
             elapsed_str = f"{int(elapsed // 3600):02d}:{int((elapsed % 3600) // 60):02d}:{int(elapsed % 60):02d}"

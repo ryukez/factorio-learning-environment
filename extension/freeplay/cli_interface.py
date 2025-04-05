@@ -16,7 +16,7 @@ class CLIHumanInterface(HumanInterface):
                 f"[Iteration {context['iteration_number']}] 指示の入力を待っています... (Enterで現在の指示を実行)"
                 + f"\nCurrent Instruction: {self.current_instruction}"
             )
-            if text != "":
+            if text == "":
                 return self.current_instruction
             else:
                 self.current_instruction = text
