@@ -5,7 +5,7 @@ COPY config /opt/factorio/config
 COPY config /factorio/config
 COPY mods /opt/factorio/mods
 COPY config/scenario.sh /opt/factorio/scenario.sh
-
+COPY map.zip /opt/factorio/saves2/save2.zip
 
 # Open ports:
 #      - '34197:34197/udp'

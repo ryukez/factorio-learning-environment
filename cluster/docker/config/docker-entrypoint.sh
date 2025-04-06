@@ -2,8 +2,8 @@
 set -eoux pipefail
 
 FACTORIO_VOL=/factorio
-LOAD_LATEST_SAVE="${LOAD_LATEST_SAVE:-true}"
-GENERATE_NEW_SAVE="${GENERATE_NEW_SAVE:-false}"
+LOAD_LATEST_SAVE="${LOAD_LATEST_SAVE:-false}"
+GENERATE_NEW_SAVE="${GENERATE_NEW_SAVE:-true}"
 SAVE_NAME="${SAVE_NAME:-""}"
 
 mkdir -p "$FACTORIO_VOL"
@@ -91,7 +91,7 @@ FLAGS=(\
 if [[ $LOAD_LATEST_SAVE == true ]]; then
     FLAGS+=( --start-server-load-latest )
 else
-    FLAGS+=( --start-server "$SAVE_NAME" )
+    FLAGS+=( --start-server "$SAVES/$SAVE_NAME" )
 fi
 
 # shellcheck disable=SC2086

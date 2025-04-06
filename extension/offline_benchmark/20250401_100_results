@@ -1,0 +1,35 @@
+gemma-27b
+
+Total data points: 100
+Average log reward: [1.7453708041540605]
+Average commands: 3.18
+
+claude-3.7-sonnet-thinking
+
+Total data points: 100
+Average log reward: [0.292811467301502]
+Average commands: 8.77
+
+gemini-2.0-flash
+
+Total data points: 100
+Average log reward: [2.084181279112738]
+Average commands: 3.87
+
+gpt-4o-mini
+
+Total data points: 100
+Average log reward: [1.7511654253448796]
+Average commands: 2.59
+
+claude-3.5
+
+Total data points: 100
+Average log reward: [0.4719194160030477]
+Average commands: 3.77
+
+deepseek-v3
+
+Total data points: 100
+Average log reward: [0.21177205122797615]
+Average commands: 4.92

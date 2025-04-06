@@ -7,7 +7,7 @@
     "The equivalent to 'water coverage' in the map generator GUI. Higher coverage means more water in larger oceans.",
     "Water level = 10 * log2(this value)"
   ],
-  "water": 1,
+  "water": 2,
 
   "_comment_width+height": "Width and height of map, in tiles; 0 means infinite",
   "width": 0,
@@ -19,13 +19,13 @@
   "peaceful_mode": false,
   "autoplace_controls":
   {
-    "coal": {"frequency": 1, "size": 1, "richness": 1},
-    "stone": {"frequency": 1, "size": 1, "richness": 1},
-    "copper-ore": {"frequency": 1, "size": 1,"richness": 1},
-    "iron-ore": {"frequency": 1, "size": 1, "richness": 1},
-    "uranium-ore": {"frequency": 1, "size": 1, "richness": 1},
-    "crude-oil": {"frequency": 1, "size": 1, "richness": 1},
-    "trees": {"frequency": 1, "size": 1, "richness": 1},
+    "coal": {"frequency": 1, "size": 1, "richness": 10},
+    "stone": {"frequency": 1, "size": 1, "richness": 10},
+    "copper-ore": {"frequency": 1, "size": 1,"richness": 10},
+    "iron-ore": {"frequency": 1, "size": 1, "richness": 10},
+    "uranium-ore": {"frequency": 50, "size": 1, "richness": 10},
+    "crude-oil": {"frequency": 50, "size": 1, "richness": 10},
+    "trees": {"frequency": 1, "size": 1, "richness": 10},
     "enemy-base": {"frequency": 1, "size": 1, "richness": 1}
   },
 
@@ -45,7 +45,7 @@
     "cliff_elevation_interval": 40,
 
     "_richness_comment": "Called 'cliff continuity' in the map generator GUI. 0 will result in no cliffs, 10 will make all cliff rows completely solid",
-    "richness": 1
+    "richness": 0
   },
 
   "_property_expression_names_comment":

@@ -10,36 +10,36 @@ services:
     deploy:
       resources:
         limits:
-          cpus: '1'
+          cpus: "1"
           memory: 1024m
     # entrypoint: []
     entrypoint: ["/opt/factorio/config/docker-entrypoint.sh"]
     environment:
-    - SAVE_NAME=save2
-    - SAVES=/opt/factorio/saves2
-    - CONFIG=/opt/factorio/config
-    - MODS=/opt/factorio/mods
-    - SCENARIOS=/opt/factorio/scenarios
-    - PORT=34197
-    - RCON_PORT=27015
-    image: factorio
+      - SAVE_NAME=save2
+      - SAVES=/opt/factorio/saves2
+      - CONFIG=/opt/factorio/config
+      - MODS=/opt/factorio/mods
+      - SCENARIOS=/opt/factorio/scenarios
+      - PORT=34197
+      - RCON_PORT=27015
+    image: ryunosukez/factorio-learning-environment:v0.1.0
     platform: linux/amd64
     ports:
-    - 34197:34197/udp
-    - 27000:27015/tcp
+      - 34197:34197/udp
+      - 27000:27015/tcp
     pull_policy: never
     restart: unless-stopped
     user: factorio
     volumes:
-    - source: ../scenarios/default_lab_scenario
-      target: /opt/factorio/scenarios/default_lab_scenario
-      type: bind
-    - source: ../scenarios/open_world
-      target: /opt/factorio/scenarios/open_world
-      type: bind
-    - source: ~/Applications/Factorio.app/Contents/Resources/mods
-      target: /opt/factorio/mods
-      type: bind
-    - source: ../../data/_screenshots
-      target: /opt/factorio/script-output
-      type: bind
+      - source: ../scenarios/default_lab_scenario
+        target: /opt/factorio/scenarios/default_lab_scenario
+        type: bind
+      - source: ../scenarios/open_world
+        target: /opt/factorio/scenarios/open_world
+        type: bind
+      - source: ~/Applications/Factorio.app/Contents/Resources/mods
+        target: /opt/factorio/mods
+        type: bind
+      - source: ../../data/_screenshots
+        target: /opt/factorio/script-output
+        type: bind
