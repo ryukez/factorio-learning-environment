@@ -15,12 +15,21 @@ global.actions.nearest = function(player_index, resource)
 
     local normalized_resource = normalize_resource_name(resource)
 
+    local function shuffle_table(tbl)
+        for i = #tbl, 2, -1 do
+            local j = math.random(i)
+            tbl[i], tbl[j] = tbl[j], tbl[i]
+        end
+        return tbl
+    end
+
     local function find_nearest(player, resource)
         local surface = player.surface
         local position = player.position
         local closest_distance = math.huge
         local closest = nil
         local entities
+        math.randomseed(game.tick)
 
         if resource == "wood" then
             entities = surface.find_entities_filtered{
@@ -32,9 +41,10 @@ global.actions.nearest = function(player_index, resource)
                 area = {{position.x - 500, position.y - 500}, {position.x + 500, position.y + 500}},
                 name = "water"
             }
+            water_positions = shuffle_table(water_positions)
             for _, water_tile in ipairs(water_positions) do
                 local distance = ((position.x - water_tile.position.x) ^ 2 + (position.y - water_tile.position.y) ^ 2) ^ 0.5
-                if distance < closest_distance then
+                if distance < closest_distance * 1.1 then
                     closest_distance = distance
                     closest = water_tile.position
                 end
@@ -51,9 +61,10 @@ global.actions.nearest = function(player_index, resource)
             }
         end
 
+        entities = shuffle_table(entities)
         for _, entity in ipairs(entities) do
             local distance = ((position.x - entity.position.x) ^ 2 + (position.y - entity.position.y) ^ 2) ^ 0.5
-            if distance < closest_distance then
+            if distance < closest_distance * 1.1 then
                 closest_distance = distance
                 closest = entity.position
             end

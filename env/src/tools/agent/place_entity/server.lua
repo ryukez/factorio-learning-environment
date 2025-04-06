@@ -187,13 +187,13 @@ global.actions.place_entity = function(player_index, entity, direction, x, y, ex
         if exact then
             local existing_entity = player.surface.find_entity(entity, position)
             if existing_entity then
-                --if existing_entity.name == entity then
-                --    existing_entity.direction = entity_direction
-                --    return global.utils.serialize_entity(existing_entity)
-                --else
-                --    existing_entity.destroy({raise_destroy=true})
-                --end
-                error("\"entity already exists at the target position " .. serpent.line(existing_entity.position) .. " - remove this before continuing.\"" )
+                if existing_entity.name == entity then
+                   existing_entity.direction = entity_direction
+                   return global.utils.serialize_entity(existing_entity)
+                else
+                   existing_entity.destroy({raise_destroy=true})
+                end
+                -- error("\"entity already exists at the target position " .. serpent.line(existing_entity.position) .. " - remove this before continuing.\"" )
             end
 
             -- Get entity prototype's collision box

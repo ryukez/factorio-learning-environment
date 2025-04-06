@@ -107,7 +107,7 @@ function is_full(entity)
                 end
             end
 
-            table.insert(full_inventories, inventory_name .. " is full")  -- Add the name of the full inventory to the list
+            -- table.insert(full_inventories, inventory_name .. " is full")  -- Add the name of the full inventory to the list
 
             ::continue::
         end
@@ -311,17 +311,20 @@ function get_issues(entity)
                 type = {"container", "transport-belt", "underground-belt", "splitter", "furnace"}
             }[1]
 
-            if destination_entity then
-                if destination_entity.type == "container" then
-                    table.insert(issues, "\'chest at drop position is full. Empty the chest at (" .. rounded_x .. ", " .. rounded_y .. ") to continue mining.\'")
-                elseif destination_entity.type == "furnace" then
-                    table.insert(issues, "\'furnace belt at drop position is blocked.\'")
-                else
-                    table.insert(issues, "\'transport belt at drop position is blocked. Clear the belt at (" .. rounded_x .. ", " .. rounded_y .. ") to continue mining.\'")
-                end
-            else
-                table.insert(issues, "\'output blocked by item on the ground. There is no sink entity in place to accept the output.\'")
-            end
+            -- if destination_entity then
+            --     if destination_entity.type == "container" then
+            --         table.insert(issues, "\'chest at drop position is full. Empty the chest at (" .. rounded_x .. ", " .. rounded_y .. ") to continue mining.\'")
+            --     elseif destination_entity.type == "furnace" then
+            --         table.insert(issues, "\'furnace belt at drop position is blocked.\'")
+            --     else
+            --         table.insert(issues, "\'transport belt at drop position is blocked. Clear the belt at (" .. rounded_x .. ", " .. rounded_y .. ") to continue mining.\'")
+            --     end
+            -- else
+            --     table.insert(issues, "\'output blocked by item on the ground. There is no sink entity in place to accept the output.\'")
+            -- end
+            -- if not destination_entity then
+            --     table.insert(issues, "\'output blocked by item on the ground. There is no sink entity in place to accept the output.\'")
+            -- end
         else
             table.insert(issues, "\'waiting for space in destination\'")
         end

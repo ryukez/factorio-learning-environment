@@ -167,6 +167,8 @@ class PythonParser:
         else:
             raise RuntimeError('Incorrect message format')
 
+        content = content.replace("[Policy]", "")
+
         if PythonParser.is_valid_python(content):
             return content, content
 
