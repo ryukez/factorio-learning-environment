@@ -2,7 +2,7 @@ from env.src.instance import FactorioInstance
 from env.src.models.game_state import GameState
 from datetime import datetime
 from time import sleep
-import os
+from eval.tasks.task_factory import TaskFactory
 
 
 def create_factorio_instance():
@@ -23,10 +23,12 @@ def create_factorio_instance():
     return instance
 
 
-async def main():
+def main():
     instance = create_factorio_instance()
 
-    os.makedirs("recordings", exist_ok=True)
+    task = TaskFactory.create_task("open_play.json")
+    instance.reset(task.starting_game_state)
+
     while True:
         state = GameState.from_instance(instance)
 
@@ -36,5 +38,9 @@ async def main():
             "w",
         ) as f:
             f.write(state.to_raw())
-
+            print("Saved state to file:", now.strftime("%Y%m%d%H%M%S") + ".json")
         sleep(60)
+
+
+if __name__ == "__main__":
+    main()
